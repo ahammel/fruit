@@ -1,7 +1,12 @@
-.PHONY: p pretty l lint t ta test-all b build r run br build-release c check
+SRCS = $(wildcard domain/src/*.rs)
+
+.PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check w watch
 
 p pretty:
 	cargo fmt --all
+
+pc pretty-check:
+	cargo fmt --check
 
 l lint:
 	cargo clippy --all-targets --all-features -- -D warnings
@@ -20,3 +25,6 @@ r run:
 
 br build-release:
 	cargo build --release --all
+
+w watch:
+	fd .rs | entr -s 'clear && make c && make pc && make l && make t'

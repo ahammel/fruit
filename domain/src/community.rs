@@ -26,8 +26,7 @@ impl UuidIdentifier for CommunityId {
 pub struct Community {
     /// Unique identifier for this community.
     pub id: CommunityId,
-    /// Community-wide luck score; stacks with individual member luck.
-    pub luck: f64,
+    luck: f64,
     /// Members belonging to this community, keyed by their ID.
     pub members: HashMap<MemberId, Member>,
 }
@@ -40,6 +39,28 @@ impl Community {
             luck: 0.0,
             members: HashMap::new(),
         }
+    }
+
+    /// Overrides the ID. Useful when reconstituting a community from stored data.
+    pub fn with_id(mut self, id: CommunityId) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Overrides the luck score.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `luck` is not finite.
+    pub fn with_luck(mut self, luck: f64) -> Self {
+        assert!(luck.is_finite(), "luck must be finite; got {luck}");
+        self.luck = luck;
+        self
+    }
+
+    /// Returns this community's luck score.
+    pub fn luck(&self) -> f64 {
+        self.luck
     }
 
     /// Adds `member` to the community. Returns `true` if the member was newly inserted,
@@ -68,19 +89,12 @@ impl Default for Community {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{bag::Bag, id::UuidIdentifier};
+    use crate::id::UuidIdentifier;
 
     #[test]
     fn new_community_is_empty() {
         let community = Community::new();
-        assert_eq!(
-            community,
-            Community {
-                id: community.id,
-                luck: 0.0,
-                members: HashMap::new(),
-            }
-        );
+        assert_eq!(community, Community::new().with_id(community.id));
     }
 
     #[test]
@@ -89,22 +103,9 @@ mod tests {
         let member = Member::new("Alice");
         let id = member.id;
         assert!(community.add_member(member));
-        assert_eq!(
-            community,
-            Community {
-                id: community.id,
-                luck: 0.0,
-                members: HashMap::from([(
-                    id,
-                    Member {
-                        id,
-                        display_name: "Alice".to_string(),
-                        luck: 0.0,
-                        bag: Bag::new()
-                    }
-                )]),
-            }
-        );
+        let mut expected = Community::new().with_id(community.id);
+        expected.members = HashMap::from([(id, Member::new("Alice").with_id(id))]);
+        assert_eq!(community, expected);
     }
 
     #[test]
@@ -112,30 +113,12 @@ mod tests {
         let mut community = Community::new();
         let member = Member::new("Alice");
         let id = member.id;
-        let duplicate = Member {
-            id,
-            display_name: "Alice2".to_string(),
-            luck: 0.0,
-            bag: Bag::new(),
-        };
+        let duplicate = Member::new("Alice2").with_id(id);
         assert!(community.add_member(member));
         assert!(!community.add_member(duplicate));
-        assert_eq!(
-            community,
-            Community {
-                id: community.id,
-                luck: 0.0,
-                members: HashMap::from([(
-                    id,
-                    Member {
-                        id,
-                        display_name: "Alice".to_string(),
-                        luck: 0.0,
-                        bag: Bag::new()
-                    }
-                )]),
-            }
-        );
+        let mut expected = Community::new().with_id(community.id);
+        expected.members = HashMap::from([(id, Member::new("Alice").with_id(id))]);
+        assert_eq!(community, expected);
     }
 
     #[test]
@@ -145,28 +128,19 @@ mod tests {
         let id = member.id;
         community.add_member(member);
         let removed = community.remove_member(id).unwrap();
-        assert_eq!(
-            removed,
-            Member {
-                id,
-                display_name: "Bob".to_string(),
-                luck: 0.0,
-                bag: Bag::new()
-            }
-        );
-        assert_eq!(
-            community,
-            Community {
-                id: community.id,
-                luck: 0.0,
-                members: HashMap::new()
-            }
-        );
+        assert_eq!(removed, Member::new("Bob").with_id(id));
+        assert_eq!(community, Community::new().with_id(community.id));
     }
 
     #[test]
     fn remove_member_returns_none_for_unknown_id() {
         let mut community = Community::new();
         assert!(community.remove_member(MemberId::new()).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "luck must be finite")]
+    fn with_luck_rejects_infinite() {
+        Community::new().with_luck(f64::INFINITY);
     }
 }

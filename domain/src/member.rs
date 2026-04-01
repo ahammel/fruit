@@ -23,8 +23,7 @@ pub struct Member {
     pub id: MemberId,
     /// The name shown to other members.
     pub display_name: String,
-    /// Personal luck score; influences the rarity of fruits this member receives each tick.
-    pub luck: f64,
+    luck: f64,
     /// The fruits currently held by this member.
     pub bag: Bag,
 }
@@ -38,6 +37,34 @@ impl Member {
             luck: 0.0,
             bag: Bag::new(),
         }
+    }
+
+    /// Overrides the ID. Useful when reconstituting a member from stored data.
+    pub fn with_id(mut self, id: MemberId) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Overrides the bag contents.
+    pub fn with_bag(mut self, bag: Bag) -> Self {
+        self.bag = bag;
+        self
+    }
+
+    /// Overrides the luck score.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `luck` is not finite.
+    pub fn with_luck(mut self, luck: f64) -> Self {
+        assert!(luck.is_finite(), "luck must be finite; got {luck}");
+        self.luck = luck;
+        self
+    }
+
+    /// Returns this member's luck score.
+    pub fn luck(&self) -> f64 {
+        self.luck
     }
 
     /// Adds one instance of `fruit` to this member's bag.
@@ -55,15 +82,7 @@ mod tests {
     #[test]
     fn new_member_has_neutral_luck() {
         let member = Member::new("Alice");
-        assert_eq!(
-            member,
-            Member {
-                id: member.id,
-                display_name: "Alice".to_string(),
-                luck: 0.0,
-                bag: Bag::new()
-            }
-        );
+        assert_eq!(member, Member::new("Alice").with_id(member.id));
     }
 
     #[test]
@@ -72,12 +91,9 @@ mod tests {
         member.receive(GRAPES);
         assert_eq!(
             member,
-            Member {
-                id: member.id,
-                display_name: "Bob".to_string(),
-                luck: 0.0,
-                bag: Bag::new().insert(GRAPES),
-            }
+            Member::new("Bob")
+                .with_id(member.id)
+                .with_bag(Bag::new().insert(GRAPES))
         );
     }
 
@@ -85,15 +101,17 @@ mod tests {
     fn member_can_receive_multiple_fruits() {
         let mut member = Member::new("Bob");
         member.receive(GRAPES).receive(GRAPES).receive(RED_APPLE);
-
         assert_eq!(
             member,
-            Member {
-                id: member.id,
-                display_name: "Bob".to_string(),
-                luck: 0.0,
-                bag: Bag::new().insert(GRAPES).insert(GRAPES).insert(RED_APPLE)
-            }
+            Member::new("Bob")
+                .with_id(member.id)
+                .with_bag(Bag::new().insert(GRAPES).insert(GRAPES).insert(RED_APPLE))
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "luck must be finite")]
+    fn with_luck_rejects_infinite() {
+        Member::new("Alice").with_luck(f64::INFINITY);
     }
 }
