@@ -9,6 +9,16 @@ pub struct Fruit {
     pub rarity: f64,
 }
 
+/// Fruit identity is determined solely by its emoji; rarity is a derived property.
+/// `f64` blocks `#[derive(Eq, Hash)]`, so both are implemented manually.
+impl Eq for Fruit {}
+
+impl std::hash::Hash for Fruit {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.emoji.hash(state);
+    }
+}
+
 pub static GRAPES: Fruit = Fruit {
     emoji: "🍇",
     name: "Grapes",
