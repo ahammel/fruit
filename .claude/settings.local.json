@@ -6,7 +6,9 @@
       "Bash(cargo check:*)",
       "Bash(cargo fmt:*)",
       "Bash(cargo clippy:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)"
     ]
   }
 }

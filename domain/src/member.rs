@@ -1,8 +1,26 @@
-use crate::{bag::Bag, fruit::Fruit};
+use uuid::Uuid;
+
+use crate::{bag::Bag, fruit::Fruit, id::UuidIdentifier};
+
+/// Typed identifier for a [`Member`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MemberId(Uuid);
+
+impl UuidIdentifier for MemberId {
+    fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
 
 /// A participant in the game.
 #[derive(Debug, PartialEq)]
 pub struct Member {
+    /// Unique identifier for this member.
+    pub id: MemberId,
     /// The name shown to other members.
     pub display_name: String,
     /// Personal luck score; influences the rarity of fruits this member receives each tick.
@@ -12,9 +30,10 @@ pub struct Member {
 }
 
 impl Member {
-    /// Creates a new member with an empty bag and neutral luck (`0.0`).
+    /// Creates a new member with a random ID, an empty bag, and neutral luck (`0.0`).
     pub fn new(display_name: impl Into<String>) -> Self {
         Self {
+            id: MemberId::new(),
             display_name: display_name.into(),
             luck: 0.0,
             bag: Bag::new(),
@@ -35,9 +54,11 @@ mod tests {
 
     #[test]
     fn new_member_has_neutral_luck() {
+        let member = Member::new("Alice");
         assert_eq!(
-            Member::new("Alice"),
+            member,
             Member {
+                id: member.id,
                 display_name: "Alice".to_string(),
                 luck: 0.0,
                 bag: Bag::new()
@@ -52,6 +73,7 @@ mod tests {
         assert_eq!(
             member,
             Member {
+                id: member.id,
                 display_name: "Bob".to_string(),
                 luck: 0.0,
                 bag: Bag::new().insert(GRAPES),
@@ -67,6 +89,7 @@ mod tests {
         assert_eq!(
             member,
             Member {
+                id: member.id,
                 display_name: "Bob".to_string(),
                 luck: 0.0,
                 bag: Bag::new().insert(GRAPES).insert(GRAPES).insert(RED_APPLE)
