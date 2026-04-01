@@ -57,6 +57,51 @@ mod tests {
         CommunityStore::new(InMemoryCommunityRepo::new())
     }
 
+    // --- helpers ---
+
+    /// Creates a `RwLock<HashMap>` that has been poisoned by a panicking writer thread.
+    /// Used to exercise the `?` error branches in `get` and `put`.
+    fn poisoned_store() -> RwLock<HashMap<CommunityId, Community>> {
+        use std::sync::Arc;
+        let lock = Arc::new(RwLock::new(HashMap::new()));
+        let l = Arc::clone(&lock);
+        std::thread::spawn(move || {
+            let _guard = l.write().unwrap();
+            panic!("intentional poison");
+        })
+        .join()
+        .ok();
+        Arc::try_unwrap(lock).unwrap()
+    }
+
+    // --- default ---
+
+    #[test]
+    fn default_produces_empty_repo() {
+        assert!(InMemoryCommunityRepo::default()
+            .get(CommunityId::new())
+            .unwrap()
+            .is_none());
+    }
+
+    // --- poisoned lock error paths ---
+
+    #[test]
+    fn get_returns_err_when_lock_is_poisoned() {
+        let repo = InMemoryCommunityRepo {
+            store: poisoned_store(),
+        };
+        assert!(repo.get(CommunityId::new()).is_err());
+    }
+
+    #[test]
+    fn put_returns_err_when_lock_is_poisoned() {
+        let repo = InMemoryCommunityRepo {
+            store: poisoned_store(),
+        };
+        assert!(repo.put(Community::new()).is_err());
+    }
+
     // --- repo tests ---
 
     #[test]

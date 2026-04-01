@@ -139,6 +139,24 @@ mod tests {
     }
 
     #[test]
+    fn community_id_as_uuid_roundtrips() {
+        let id = CommunityId::new();
+        assert_eq!(id, CommunityId(id.as_uuid()));
+    }
+
+    #[test]
+    fn default_equals_new() {
+        let community = Community::default();
+        assert_eq!(community, Community::new().with_id(community.id));
+    }
+
+    #[test]
+    fn with_luck_sets_luck() {
+        let community = Community::new().with_luck(1.5);
+        assert_eq!(community.luck(), 1.5);
+    }
+
+    #[test]
     #[should_panic(expected = "luck must be finite")]
     fn with_luck_rejects_infinite() {
         Community::new().with_luck(f64::INFINITY);

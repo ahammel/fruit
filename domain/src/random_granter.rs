@@ -109,6 +109,12 @@ mod tests {
     static TWO_FRUITS: &[Fruit] = &[GRAPES, CHERRIES];
 
     #[test]
+    #[should_panic(expected = "fruit pool must not be empty")]
+    fn with_fruits_rejects_empty_pool() {
+        RandomGranter::new(StdRng::seed_from_u64(0)).with_fruits(&[]);
+    }
+
+    #[test]
     fn respects_custom_fruit_pool() {
         let mut granter = RandomGranter::new(StdRng::seed_from_u64(0)).with_fruits(TWO_FRUITS);
         let mut community = Community::new();

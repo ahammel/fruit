@@ -110,6 +110,18 @@ mod tests {
     }
 
     #[test]
+    fn member_id_as_uuid_roundtrips() {
+        let id = MemberId::new();
+        assert_eq!(id, MemberId(id.as_uuid()));
+    }
+
+    #[test]
+    fn with_luck_sets_luck() {
+        let member = Member::new("Alice").with_luck(1.5);
+        assert_eq!(member.luck(), 1.5);
+    }
+
+    #[test]
     #[should_panic(expected = "luck must be finite")]
     fn with_luck_rejects_infinite() {
         Member::new("Alice").with_luck(f64::INFINITY);
