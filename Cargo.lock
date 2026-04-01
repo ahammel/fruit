@@ -28,6 +28,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "gib-fruit-in-memory-db"
+version = "0.1.0"
+dependencies = [
+ "gib-fruit-domain",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.184"
 source = "registry+https://github.com/rust-lang/crates.io-index"

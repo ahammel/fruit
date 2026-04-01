@@ -22,7 +22,7 @@ impl UuidIdentifier for CommunityId {
 }
 
 /// A group of members that share a collective luck modifier.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Community {
     /// Unique identifier for this community.
     pub id: CommunityId,

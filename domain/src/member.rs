@@ -17,7 +17,7 @@ impl UuidIdentifier for MemberId {
 }
 
 /// A participant in the game.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Member {
     /// Unique identifier for this member.
     pub id: MemberId,

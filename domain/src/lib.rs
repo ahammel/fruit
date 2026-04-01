@@ -1,7 +1,10 @@
 pub mod bag;
 pub mod community;
+pub mod error;
 pub mod fruit;
 pub mod granter;
 pub mod id;
 pub mod member;
 pub mod random_granter;
+pub mod repo;
+pub mod store;
