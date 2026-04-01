@@ -1,0 +1,13 @@
+[package]
+name = "gib-fruit-command-line-service"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gib-fruit"
+path = "src/main.rs"
+
+[dependencies]
+gib-fruit-domain = { path = "../domain" }
+gib-fruit-in-memory-db = { path = "../in_memory_db" }
+rand = "0.8"

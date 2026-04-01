@@ -20,6 +20,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gib-fruit-command-line-service"
+version = "0.1.0"
+dependencies = [
+ "gib-fruit-domain",
+ "gib-fruit-in-memory-db",
+ "rand",
+]
+
+[[package]]
 name = "gib-fruit-domain"
 version = "0.1.0"
 dependencies = [
