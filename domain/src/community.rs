@@ -26,17 +26,17 @@ impl UuidIdentifier for CommunityId {
 pub struct Community {
     /// Unique identifier for this community.
     pub id: CommunityId,
-    luck: f64,
+    _luck: u16,
     /// Members belonging to this community, keyed by their ID.
     pub members: HashMap<MemberId, Member>,
 }
 
 impl Community {
-    /// Creates a new community with a random ID, neutral luck (`0.0`), and no members.
+    /// Creates a new community with a random ID, neutral luck (`0`), and no members.
     pub fn new() -> Self {
         Self {
             id: CommunityId::new(),
-            luck: 0.0,
+            _luck: 0,
             members: HashMap::new(),
         }
     }
@@ -48,19 +48,27 @@ impl Community {
     }
 
     /// Overrides the luck score.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `luck` is not finite.
-    pub fn with_luck(mut self, luck: f64) -> Self {
-        assert!(luck.is_finite(), "luck must be finite; got {luck}");
-        self.luck = luck;
+    pub fn with_luck(mut self, luck: u16) -> Self {
+        self._luck = luck;
         self
     }
 
-    /// Returns this community's luck score.
+    /// Overrides the luck score using a normalised value in `[0.0, 1.0]`.
+    ///
+    /// The value is scaled to the internal `u16` range and rounded. Note that
+    /// `self.luck() == luck` is not guaranteed: `luck` may not be exactly
+    /// representable as a `u16`, so a round-trip through this setter and
+    /// [`luck`][Self::luck] may differ slightly.
+    pub fn with_luck_f64(mut self, luck: f64) -> Self {
+        self._luck = (luck * u16::MAX as f64).round() as u16;
+        self
+    }
+
+    /// Returns this community's luck score normalised to `[0.0, 1.0]`.
+    ///
+    /// `0.0` is neutral luck; `1.0` is the maximum (`u16::MAX`).
     pub fn luck(&self) -> f64 {
-        self.luck
+        self._luck as f64 / u16::MAX as f64
     }
 
     /// Adds `member` to the community. Returns `true` if the member was newly inserted,
@@ -152,13 +160,13 @@ mod tests {
 
     #[test]
     fn with_luck_sets_luck() {
-        let community = Community::new().with_luck(1.5);
-        assert_eq!(community.luck(), 1.5);
+        let community = Community::new().with_luck(500);
+        assert_eq!(community.luck(), 500.0 / u16::MAX as f64);
     }
 
     #[test]
-    #[should_panic(expected = "luck must be finite")]
-    fn with_luck_rejects_infinite() {
-        Community::new().with_luck(f64::INFINITY);
+    fn with_luck_f64_sets_luck() {
+        let community = Community::new().with_luck_f64(0.5);
+        assert!((community.luck() - 0.5).abs() < 1e-4);
     }
 }

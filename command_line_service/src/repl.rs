@@ -118,10 +118,10 @@ fn cmd_luck(store: &CommunityStore<InMemoryCommunityRepo>, id: CommunityId, args
     }
 
     let value_str = args.last().unwrap();
-    let value = match value_str.parse::<f64>() {
-        Ok(v) if v.is_finite() => v,
+    let value: f64 = match value_str.parse() {
+        Ok(v) if (0.0..=1.0).contains(&v) => v,
         Ok(_) => {
-            println!("luck must be finite");
+            println!("luck must be in [0.0, 1.0]");
             return;
         }
         Err(_) => {
@@ -134,7 +134,7 @@ fn cmd_luck(store: &CommunityStore<InMemoryCommunityRepo>, id: CommunityId, args
 
     if args.len() == 1 {
         // No name — set community luck.
-        let community = community.with_luck(value);
+        let community = community.with_luck_f64(value);
         store.put(community).unwrap();
         println!("community luck set to {value}");
     } else {
@@ -148,7 +148,9 @@ fn cmd_luck(store: &CommunityStore<InMemoryCommunityRepo>, id: CommunityId, args
         {
             Some(member_id) => {
                 let member = community.members.remove(&member_id).unwrap();
-                community.members.insert(member_id, member.with_luck(value));
+                community
+                    .members
+                    .insert(member_id, member.with_luck_f64(value));
                 store.put(community).unwrap();
                 println!("{name} luck set to {value}");
             }
@@ -165,7 +167,7 @@ fn fetch(store: &CommunityStore<InMemoryCommunityRepo>, id: CommunityId) -> Comm
 }
 
 fn print_community(community: &Community) {
-    println!("community luck: {:.2}", community.luck());
+    println!("community luck: {:.3}", community.luck());
     if community.members.is_empty() {
         println!("  (no members)");
         return;
@@ -173,12 +175,14 @@ fn print_community(community: &Community) {
     let mut members: Vec<&Member> = community.members.values().collect();
     members.sort_by(|a, b| a.display_name.cmp(&b.display_name));
     for member in members {
-        println!("  {} (luck: {:.2}):", member.display_name, member.luck());
+        println!("  {} (luck: {:.3}):", member.display_name, member.luck());
         let mut fruits: Vec<_> = member.bag.iter().collect();
         fruits.sort_by(|a, b| {
-            a.0.category
-                .cmp(&b.0.category)
-                .then(a.0.rarity.cmp(&b.0.rarity))
+            a.0.category.cmp(&b.0.category).then(
+                a.0.rarity()
+                    .partial_cmp(&b.0.rarity())
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
         if fruits.is_empty() {
             println!("    (empty bag)");
@@ -195,8 +199,8 @@ fn print_help() {
     println!("  add <name>           add a member");
     println!("  remove <name>        remove a member");
     println!("  grant <count>        grant N fruits to each member");
-    println!("  luck <value>         set community luck");
-    println!("  luck <name> <value>  set member luck");
+    println!("  luck <value>         set community luck  (0.0–1.0)");
+    println!("  luck <name> <value>  set member luck     (0.0–1.0)");
     println!("  help                 show this message");
     println!("  quit / exit          quit");
 }

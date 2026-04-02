@@ -124,7 +124,7 @@ mod tests {
         let community = Community::new();
         let id = community.id;
         repo.put(community).unwrap();
-        let updated = Community::new().with_id(id).with_luck(0.5);
+        let updated = Community::new().with_id(id).with_luck(500);
         repo.put(updated.clone()).unwrap();
         assert_eq!(repo.get(id).unwrap(), Some(updated));
     }
@@ -151,7 +151,7 @@ mod tests {
         let community = Community::new();
         let id = community.id;
         store.put(community).unwrap();
-        let updated = Community::new().with_id(id).with_luck(0.5);
+        let updated = Community::new().with_id(id).with_luck(500);
         store.put(updated.clone()).unwrap();
         assert_eq!(store.get(id).unwrap(), Some(updated));
     }

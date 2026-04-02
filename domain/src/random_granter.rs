@@ -13,7 +13,7 @@ use crate::{
 ///
 /// Each fruit's weight depends on its [`Category`] and within-category
 /// `rarity` (`r ∈ [0, 1]`), combined with the effective luck of the member
-/// (`luck = (member.luck + community.luck).max(0.0)`):
+/// (`luck = member.luck() + community.luck()`, each normalised to `[0, 1]`):
 ///
 /// ```text
 /// Standard : (0.065 − 0.030·r) / (1 + luck)
@@ -57,12 +57,12 @@ impl<R: Rng> Granter for RandomGranter<R> {
     fn grant(&mut self, community: &mut Community, count: usize) {
         let community_luck = community.luck();
         for member in community.members.values_mut() {
-            let luck = (member.luck() + community_luck).max(0.0);
+            let luck = member.luck() + community_luck;
             let weights: Vec<f64> = self
                 .fruits
                 .iter()
                 .map(|f| {
-                    let r = f.rarity as f64 / 100.0;
+                    let r = f.rarity();
                     (match f.category {
                         Category::Standard => (0.065 - 0.030 * r) / (1.0 + luck),
                         Category::Rare => (0.050 - 0.030 * r) * (1.0 + luck),
