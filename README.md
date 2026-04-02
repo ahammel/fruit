@@ -4,10 +4,14 @@ A sharing-economy simulation game, loosely inspired by [HeyTaco](https://heytaco
 
 ## Concept
 
-Players each hold a bag of fruit. The game progresses in clock ticks; at each tick, players receive new fruits at random. The rarity of those fruits is influenced by two luck scores:
+Players each hold a bag of fruit. At each game tick all members of a community receive
+new fruits at random. The probability of receiving rarer fruits is influenced by two luck
+scores:
 
 - **Personal luck** — affects fruit rarity for the individual.
-- **Community luck** — affects fruit rarity for all players.
+- **Community luck** — affects fruit rarity for all members.
+
+Both scores are normalised floats in `[0.0, 1.0]` (stored internally as `u16`).
 
 ### What raises luck
 
@@ -20,43 +24,70 @@ Players each hold a bag of fruit. The game progresses in clock ticks; at each ti
 
 | Action | Effect |
 |--------|--------|
+| Hoarding fruit without gifting or burning | −personal luck |
 | Ostentatious gifts the recipient could not plausibly reciprocate | −personal luck |
 | Quid-pro-quo trades | −community luck |
 
-The game rewards generosity and communal contribution; it penalises status-signalling and transactional behaviour.
+The game rewards generosity and communal contribution; it penalises status-signalling
+and transactional behaviour.
 
 ## Fruits
 
-Rarity is a normalised score in `[0.0, 1.0]`; higher means rarer. Fruits in the exotic tier (rarity ≥ 0.80) are uncommon drops that signal meaningful generosity.
+Fruits are divided into three **categories**. At neutral luck the approximate per-draw
+probabilities are:
 
-| Emoji | Name | Rarity |
-|-------|------|--------|
-| 🍇 | Grapes | 0.0010 |
-| 🍈 | Melon | 0.0016 |
-| 🍉 | Watermelon | 0.0021 |
-| 🍊 | Tangerine | 0.0026 |
-| 🍋 | Lemon | 0.0031 |
-| 🍌 | Banana | 0.0036 |
-| 🍍 | Pineapple | 0.0042 |
-| 🍎 | Red Apple | 0.0047 |
-| 🍏 | Green Apple | 0.0052 |
-| 🍐 | Pear | 0.0057 |
-| 🍑 | Peach | 0.0063 |
-| 🍒 | Cherries | 0.0068 |
-| 🍓 | Strawberry | 0.0073 |
-| 🥑 | Avocado | 0.8020 |
-| 🥒 | Cucumber | 0.8023 |
-| 🥜 | Peanut | 0.8075 |
-| 🥝 | Kiwi | 0.8082 |
-| 🥥 | Coconut | 0.8123 |
-| 🥭 | Mango | 0.8164 |
-| 🍅 | Tomato | 0.8500 |
-| 🌰 | Chestnut | 0.8600 |
-| 🌶 | Hot Pepper | 0.8750 |
-| 🫑 | Bell Pepper | 0.9200 |
-| 🫚 | Ginger Root | 0.9700 |
-| 🫐 | Blueberries | 0.9990 |
-| 🫒 | Olive | 1.0000 |
+| Category | Count | Drop range (neutral luck) |
+|----------|-------|--------------------------|
+| Standard | 9 | ~1/15 (most common) – ~1/22 (rarest) |
+| Rare | 9 | ~1/19 – ~1/48 |
+| Exotic | 8 | ~1/96 – ~1/958 |
+
+Higher luck suppresses standard drops and boosts rare and exotic ones. At maximum luck
+the exotic range compresses to roughly 1/21 – 1/104 and the rarest exotics benefit most.
+
+Within each category a **rarity** score normalised to `[0.0, 1.0]` determines relative
+drop weight; higher means rarer within the tier.
+
+### Standard
+
+| Emoji | Name |
+|-------|------|
+| 🍇 | Grapes |
+| 🍈 | Melon |
+| 🍉 | Watermelon |
+| 🍊 | Tangerine |
+| 🍋 | Lemon |
+| 🍌 | Banana |
+| 🍍 | Pineapple |
+| 🍎 | Red Apple |
+| 🍏 | Green Apple |
+
+### Rare
+
+| Emoji | Name |
+|-------|------|
+| 🍐 | Pear |
+| 🍑 | Peach |
+| 🍒 | Cherries |
+| 🍓 | Strawberry |
+| 🥑 | Avocado |
+| 🥒 | Cucumber |
+| 🥜 | Peanut |
+| 🥝 | Kiwi |
+| 🥥 | Coconut |
+
+### Exotic
+
+| Emoji | Name |
+|-------|------|
+| 🥭 | Mango |
+| 🍅 | Tomato |
+| 🌰 | Chestnut |
+| 🌶 | Hot Pepper |
+| 🫑 | Bell Pepper |
+| 🫚 | Ginger Root |
+| 🫐 | Blueberries |
+| 🫒 | Olive |
 
 ## Integrations
 
@@ -79,7 +110,22 @@ Designed to run inside chat platforms:
 | `make p` | Format (`rustfmt`) |
 | `make l` | Lint (`clippy`) |
 | `make t` | Run tests |
+| `make tc` | Test coverage (requires `cargo-llvm-cov`) |
 | `make c` | Type-check (`cargo check`) |
 | `make b` | Debug build |
-| `make r` | Run |
+| `make r` | Run REPL |
 | `make br` | Release build |
+
+### REPL
+
+`make r` launches an interactive REPL for testing the game loop:
+
+```
+> add Alice
+> add Bob
+> luck 0.3            # set community luck (0.0–1.0)
+> luck Alice 0.8      # set member luck
+> grant 5             # grant 5 fruits to every member
+> remove Bob
+> quit
+```
