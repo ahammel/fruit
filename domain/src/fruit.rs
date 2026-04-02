@@ -1,157 +1,201 @@
+/// Rarity tier of a fruit, controlling its base drop-rate and how luck affects it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Category {
+    /// Everyday fruits; their probability decreases as luck rises.
+    Standard,
+    /// Uncommon fruits; their probability increases with luck.
+    Rare,
+    /// Very uncommon fruits; their probability increases sharply with luck and
+    /// their within-tier spread compresses so the rarest exotics benefit more.
+    Exotic,
+}
+
 /// A fruit that can be held in a player's bag, gifted, or burned.
-#[derive(Debug, Clone, Copy, PartialEq)]
+///
+/// Rarity is stored as an integer in `[0, 100]` (higher = rarer within the
+/// tier), which allows all traits to be derived without manual `f64` handling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Fruit {
     /// Display name.
     pub name: &'static str,
     /// Unicode emoji, e.g. `"🍓"`.
     pub emoji: &'static str,
-    /// Normalised rarity in `[0.0, 1.0]`; higher values are rarer.
-    pub rarity: f64,
+    /// Rarity tier.
+    pub category: Category,
+    /// Within-category rarity in `[0, 100]`; higher values are rarer within
+    /// that tier.
+    pub rarity: u8,
 }
 
-/// Fruit identity is determined solely by its emoji; rarity is a derived property.
-/// `f64` blocks `#[derive(Eq, Hash)]`, so both are implemented manually.
-impl Eq for Fruit {}
-
-impl std::hash::Hash for Fruit {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.emoji.hash(state);
-    }
-}
+// ── Standard (9) ─────────────────────────────────────────────────────────────
 
 pub static GRAPES: Fruit = Fruit {
     emoji: "🍇",
     name: "Grapes",
-    rarity: 0.0010,
+    category: Category::Standard,
+    rarity: 0,
 };
 pub static MELON: Fruit = Fruit {
     emoji: "🍈",
     name: "Melon",
-    rarity: 0.0016,
+    category: Category::Standard,
+    rarity: 13,
 };
 pub static WATERMELON: Fruit = Fruit {
     emoji: "🍉",
     name: "Watermelon",
-    rarity: 0.0021,
+    category: Category::Standard,
+    rarity: 25,
 };
 pub static TANGERINE: Fruit = Fruit {
     emoji: "🍊",
     name: "Tangerine",
-    rarity: 0.0026,
+    category: Category::Standard,
+    rarity: 38,
 };
 pub static LEMON: Fruit = Fruit {
     emoji: "🍋",
     name: "Lemon",
-    rarity: 0.0031,
+    category: Category::Standard,
+    rarity: 50,
 };
 pub static BANANA: Fruit = Fruit {
     emoji: "🍌",
     name: "Banana",
-    rarity: 0.0036,
+    category: Category::Standard,
+    rarity: 63,
 };
 pub static PINEAPPLE: Fruit = Fruit {
     emoji: "🍍",
     name: "Pineapple",
-    rarity: 0.0042,
+    category: Category::Standard,
+    rarity: 75,
 };
 pub static RED_APPLE: Fruit = Fruit {
     emoji: "🍎",
     name: "Red Apple",
-    rarity: 0.0047,
+    category: Category::Standard,
+    rarity: 88,
 };
 pub static GREEN_APPLE: Fruit = Fruit {
     emoji: "🍏",
     name: "Green Apple",
-    rarity: 0.0052,
+    category: Category::Standard,
+    rarity: 100,
 };
+
+// ── Rare (9) ──────────────────────────────────────────────────────────────────
+
 pub static PEAR: Fruit = Fruit {
     emoji: "🍐",
     name: "Pear",
-    rarity: 0.0057,
+    category: Category::Rare,
+    rarity: 0,
 };
 pub static PEACH: Fruit = Fruit {
     emoji: "🍑",
     name: "Peach",
-    rarity: 0.0063,
+    category: Category::Rare,
+    rarity: 13,
 };
 pub static CHERRIES: Fruit = Fruit {
     emoji: "🍒",
     name: "Cherries",
-    rarity: 0.0068,
+    category: Category::Rare,
+    rarity: 25,
 };
 pub static STRAWBERRY: Fruit = Fruit {
     emoji: "🍓",
     name: "Strawberry",
-    rarity: 0.0073,
+    category: Category::Rare,
+    rarity: 38,
 };
 pub static AVOCADO: Fruit = Fruit {
     emoji: "🥑",
     name: "Avocado",
-    rarity: 0.8020,
+    category: Category::Rare,
+    rarity: 50,
 };
 pub static CUCUMBER: Fruit = Fruit {
     emoji: "🥒",
     name: "Cucumber",
-    rarity: 0.8023,
+    category: Category::Rare,
+    rarity: 63,
 };
 pub static PEANUT: Fruit = Fruit {
     emoji: "🥜",
     name: "Peanut",
-    rarity: 0.8075,
+    category: Category::Rare,
+    rarity: 75,
 };
 pub static KIWI: Fruit = Fruit {
     emoji: "🥝",
     name: "Kiwi",
-    rarity: 0.8082,
+    category: Category::Rare,
+    rarity: 88,
 };
 pub static COCONUT: Fruit = Fruit {
     emoji: "🥥",
     name: "Coconut",
-    rarity: 0.8123,
+    category: Category::Rare,
+    rarity: 100,
 };
+
+// ── Exotic (8) ────────────────────────────────────────────────────────────────
+
 pub static MANGO: Fruit = Fruit {
     emoji: "🥭",
     name: "Mango",
-    rarity: 0.8164,
+    category: Category::Exotic,
+    rarity: 0,
 };
 pub static TOMATO: Fruit = Fruit {
     emoji: "🍅",
     name: "Tomato",
-    rarity: 0.8500,
+    category: Category::Exotic,
+    rarity: 14,
 };
 pub static CHESTNUT: Fruit = Fruit {
     emoji: "🌰",
     name: "Chestnut",
-    rarity: 0.8600,
+    category: Category::Exotic,
+    rarity: 29,
 };
 pub static HOT_PEPPER: Fruit = Fruit {
     emoji: "🌶",
     name: "Hot Pepper",
-    rarity: 0.8750,
+    category: Category::Exotic,
+    rarity: 43,
 };
 pub static BELL_PEPPER: Fruit = Fruit {
     emoji: "🫑",
     name: "Bell Pepper",
-    rarity: 0.9200,
+    category: Category::Exotic,
+    rarity: 57,
 };
 pub static GINGER_ROOT: Fruit = Fruit {
     emoji: "🫚",
     name: "Ginger Root",
-    rarity: 0.9700,
+    category: Category::Exotic,
+    rarity: 71,
 };
 pub static BLUEBERRIES: Fruit = Fruit {
     emoji: "🫐",
     name: "Blueberries",
-    rarity: 0.9990,
+    category: Category::Exotic,
+    rarity: 86,
 };
 pub static OLIVE: Fruit = Fruit {
     emoji: "🫒",
     name: "Olive",
-    rarity: 1.0000,
+    category: Category::Exotic,
+    rarity: 100,
 };
 
-/// All defined fruits, ordered ascending by rarity.
+/// All defined fruits, ordered by category (Standard → Rare → Exotic) then by
+/// ascending within-category rarity.
 pub static FRUITS: &[Fruit] = &[
+    // Standard (9)
     GRAPES,
     MELON,
     WATERMELON,
@@ -161,6 +205,7 @@ pub static FRUITS: &[Fruit] = &[
     PINEAPPLE,
     RED_APPLE,
     GREEN_APPLE,
+    // Rare (9)
     PEAR,
     PEACH,
     CHERRIES,
@@ -170,6 +215,7 @@ pub static FRUITS: &[Fruit] = &[
     PEANUT,
     KIWI,
     COCONUT,
+    // Exotic (8)
     MANGO,
     TOMATO,
     CHESTNUT,
@@ -184,18 +230,158 @@ pub static FRUITS: &[Fruit] = &[
 mod tests {
     use super::*;
 
+    // ── Helpers used by both passing and failure tests ────────────────────────
+
+    fn assert_ordered_by_category_then_rarity(fruits: &[Fruit]) {
+        let expected = [Category::Standard, Category::Rare, Category::Exotic];
+        let mut cat_idx = 0;
+        let mut prev_rarity = 0u8;
+        for f in fruits {
+            if f.category != expected[cat_idx] {
+                cat_idx += 1;
+                prev_rarity = 0;
+                assert_eq!(
+                    f.category, expected[cat_idx],
+                    "unexpected category order at fruit {}",
+                    f.name
+                );
+            }
+            assert!(
+                f.rarity >= prev_rarity,
+                "rarity not monotonically increasing within {:?} (at {})",
+                f.category,
+                f.name
+            );
+            prev_rarity = f.rarity;
+        }
+    }
+
+    fn assert_category_counts_balanced(fruits: &[Fruit]) {
+        let counts = [Category::Standard, Category::Rare, Category::Exotic]
+            .map(|c| fruits.iter().filter(|f| f.category == c).count());
+        let min = *counts.iter().min().unwrap();
+        let max = *counts.iter().max().unwrap();
+        assert!(
+            max - min <= 1,
+            "category counts are unbalanced: Standard={}, Rare={}, Exotic={}",
+            counts[0],
+            counts[1],
+            counts[2]
+        );
+    }
+
+    // ── Passing tests ─────────────────────────────────────────────────────────
+
     #[test]
     fn rarity_bounds() {
-        assert!(FRUITS.iter().all(|f| (0.0..=1.0).contains(&f.rarity)));
+        assert!(FRUITS.iter().all(|f| f.rarity <= 100));
     }
 
     #[test]
-    fn rarity_monotonically_increasing() {
-        assert!(FRUITS.windows(2).all(|w| w[0].rarity <= w[1].rarity));
+    fn fruits_ordered_by_category_then_rarity() {
+        assert_ordered_by_category_then_rarity(FRUITS);
+    }
+
+    #[test]
+    fn category_counts_are_balanced() {
+        assert_category_counts_balanced(FRUITS);
+    }
+
+    // ── Failure-path tests (cover the panic messages) ─────────────────────────
+
+    #[test]
+    #[should_panic(expected = "unexpected category order at fruit Grapes")]
+    fn out_of_order_category_is_detected() {
+        // PEAR is Rare; GRAPES after it is Standard, which is out of order.
+        assert_ordered_by_category_then_rarity(&[PEAR, GRAPES]);
+    }
+
+    #[test]
+    #[should_panic(expected = "rarity not monotonically increasing within Standard")]
+    fn decreasing_rarity_within_category_is_detected() {
+        let high = Fruit {
+            rarity: 99,
+            ..GRAPES
+        };
+        let low = Fruit {
+            rarity: 1,
+            ..GRAPES
+        };
+        assert_ordered_by_category_then_rarity(&[high, low]);
+    }
+
+    #[test]
+    #[should_panic(expected = "category counts are unbalanced: Standard=3, Rare=0, Exotic=0")]
+    fn imbalanced_category_counts_are_detected() {
+        assert_category_counts_balanced(&[GRAPES, GRAPES, GRAPES]);
     }
 
     #[test]
     fn all_emojis_are_single_codepoint() {
         assert!(FRUITS.iter().all(|f| f.emoji.chars().count() == 1));
+    }
+
+    #[test]
+    fn equality_uses_all_fields() {
+        let a = Fruit {
+            name: "Test",
+            emoji: "🍇",
+            category: Category::Standard,
+            rarity: 0,
+        };
+        let b = Fruit { rarity: 50, ..a };
+        assert_ne!(a, b);
+
+        let c = Fruit {
+            category: Category::Rare,
+            ..a
+        };
+        assert_ne!(a, c);
+
+        assert_eq!(a, a);
+    }
+
+    #[test]
+    fn hash_consistent_with_eq() {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let hash = |f: &Fruit| {
+            let mut h = DefaultHasher::new();
+            f.hash(&mut h);
+            h.finish()
+        };
+
+        let a = GRAPES;
+        let b = GRAPES;
+        assert_eq!(a, b);
+        assert_eq!(hash(&a), hash(&b));
+
+        let tweaked = Fruit {
+            rarity: 99,
+            ..GRAPES
+        };
+        assert_ne!(a, tweaked);
+    }
+
+    #[test]
+    fn fruits_with_same_emoji_but_different_rarity_are_distinct_map_keys() {
+        use std::collections::HashMap;
+
+        let a = Fruit {
+            name: "Apple",
+            emoji: "🍎",
+            category: Category::Standard,
+            rarity: 0,
+        };
+        let b = Fruit { rarity: 100, ..a };
+
+        let mut map = HashMap::new();
+        map.insert(a, 1u32);
+        map.insert(b, 2u32);
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map[&a], 1);
+        assert_eq!(map[&b], 2);
     }
 }

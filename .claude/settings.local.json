@@ -8,7 +8,9 @@
       "Bash(cargo clippy:*)",
       "Bash(gh issue:*)",
       "Bash(rustc --version)",
-      "Bash(cargo --version)"
+      "Bash(cargo --version)",
+      "Bash(cargo llvm-cov:*)",
+      "Bash(rustup run:*)"
     ]
   }
 }

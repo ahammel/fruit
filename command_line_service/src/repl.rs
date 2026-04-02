@@ -175,7 +175,11 @@ fn print_community(community: &Community) {
     for member in members {
         println!("  {} (luck: {:.2}):", member.display_name, member.luck());
         let mut fruits: Vec<_> = member.bag.iter().collect();
-        fruits.sort_by(|a, b| a.0.rarity.partial_cmp(&b.0.rarity).unwrap());
+        fruits.sort_by(|a, b| {
+            a.0.category
+                .cmp(&b.0.category)
+                .then(a.0.rarity.cmp(&b.0.rarity))
+        });
         if fruits.is_empty() {
             println!("    (empty bag)");
         } else {

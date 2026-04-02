@@ -5,21 +5,29 @@ use rand::{
 
 use crate::{
     community::Community,
-    fruit::{Fruit, FRUITS},
+    fruit::{Category, Fruit, FRUITS},
     granter::Granter,
 };
 
 /// Grants fruits by weighted-random selection.
 ///
-/// The probability weight for fruit `i` given a member is:
+/// Each fruit's weight depends on its [`Category`] and within-category
+/// `rarity` (`r ∈ [0, 1]`), combined with the effective luck of the member
+/// (`luck = (member.luck + community.luck).max(0.0)`):
 ///
 /// ```text
-/// weight_i = (1 - rarity_i + luck * rarity_i).max(ε)
-/// luck     = (member.luck + community.luck).max(0.0)
+/// Standard : (0.065 − 0.030·r) / (1 + luck)
+/// Rare     : (0.050 − 0.030·r) · (1 + luck)
+/// Exotic   : lerp(0.010 − 0.009·r,  0.050 − 0.040·r,  luck)
 /// ```
 ///
-/// At `luck = 0` common fruits (low rarity) dominate. At `luck = 1` all
-/// fruits are equally likely. Above `1` rare fruits dominate.
+/// At neutral luck (`luck = 0`) the approximate per-fruit probabilities are:
+/// - Standard : most common ~1/15, rarest ~1/22
+/// - Rare     : most common ~1/19, rarest ~1/48
+/// - Exotic   : most common ~1/96, rarest ~1/958
+///
+/// At `luck = 1` the exotic range compresses to roughly 1/21 – 1/104, with
+/// the rarest exotics receiving the largest boost.
 pub struct RandomGranter<R: Rng> {
     rng: R,
     fruits: &'static [Fruit],
@@ -53,7 +61,19 @@ impl<R: Rng> Granter for RandomGranter<R> {
             let weights: Vec<f64> = self
                 .fruits
                 .iter()
-                .map(|f| (1.0 - f.rarity + luck * f.rarity).max(f64::EPSILON))
+                .map(|f| {
+                    let r = f.rarity as f64 / 100.0;
+                    (match f.category {
+                        Category::Standard => (0.065 - 0.030 * r) / (1.0 + luck),
+                        Category::Rare => (0.050 - 0.030 * r) * (1.0 + luck),
+                        Category::Exotic => {
+                            let base = 0.010 - 0.009 * r;
+                            let high = 0.050 - 0.040 * r;
+                            base + luck * (high - base)
+                        }
+                    })
+                    .max(f64::EPSILON)
+                })
                 .collect();
             let dist = WeightedIndex::new(&weights)
                 .expect("weights are always valid with a non-empty fruit pool and finite luck");
@@ -74,7 +94,7 @@ mod tests {
     use crate::{
         bag::Bag,
         community::Community,
-        fruit::{CHERRIES, GRAPES, PEACH},
+        fruit::{GRAPES, STRAWBERRY},
         member::Member,
     };
 
@@ -102,11 +122,11 @@ mod tests {
         // Update this if FRUITS or the weight formula changes.
         assert_eq!(
             community.members[&id].bag,
-            Bag::new().insert(PEACH).insert(CHERRIES)
+            Bag::new().insert(STRAWBERRY).insert(STRAWBERRY)
         );
     }
 
-    static TWO_FRUITS: &[Fruit] = &[GRAPES, CHERRIES];
+    static TWO_FRUITS: &[Fruit] = &[GRAPES, STRAWBERRY];
 
     #[test]
     #[should_panic(expected = "fruit pool must not be empty")]
@@ -126,6 +146,6 @@ mod tests {
 
         let bag = &community.members[&id].bag;
         assert_eq!(bag.total(), 3);
-        assert!(bag.count(GRAPES) + bag.count(CHERRIES) == 3);
+        assert!(bag.count(GRAPES) + bag.count(STRAWBERRY) == 3);
     }
 }
