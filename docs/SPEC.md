@@ -9,7 +9,7 @@ by weighted-random selection; the weights are shaped by the member's and communi
 
 The game rewards generosity and communal contribution. Actions that raise luck:
 gifting fruit to another player (+personal luck) and burning fruit (+community luck).
-Actions that lower luck: hoarding fruit without gifting or burning (−personal luck),
+Actions that lower luck: hoarding fruit without gifting or burning (−community luck),
 ostentatious gifts (−personal luck), and quid-pro-quo trades (−community luck).
 
 ---
@@ -294,6 +294,14 @@ A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 
 **Display**: the screen is cleared before each prompt. Members are listed alphabetically;
 their bags are sorted by category then rarity. Luck values are shown to 3 decimal places.
+
+---
+
+## Events and Effects
+
+Player actions are recorded as immutable Events; state changes are derived from their
+corresponding Effects. See [docs/EventsAndEffects.md](EventsAndEffects.md) for the full
+design: shared ID sequence, data model, processing flow, and interleaving behaviour.
 
 ---
 
