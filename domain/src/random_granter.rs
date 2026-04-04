@@ -5,6 +5,7 @@ use rand::{
 
 use crate::{
     community::Community,
+    effect::StateMutation,
     fruit::{Category, Fruit, FRUITS},
     granter::Granter,
 };
@@ -54,9 +55,10 @@ impl<R: Rng> RandomGranter<R> {
 }
 
 impl<R: Rng> Granter for RandomGranter<R> {
-    fn grant(&mut self, community: &mut Community, count: usize) {
+    fn grant(&mut self, community: &Community, count: usize) -> Vec<StateMutation> {
         let community_luck = community.luck();
-        for member in community.members.values_mut() {
+        let mut mutations = Vec::new();
+        for member in community.members.values() {
             let luck = member.luck() + community_luck;
             let weights: Vec<f64> = self
                 .fruits
@@ -78,10 +80,13 @@ impl<R: Rng> Granter for RandomGranter<R> {
             let dist = WeightedIndex::new(&weights)
                 .expect("weights are always valid with a non-empty fruit pool and finite luck");
             for _ in 0..count {
-                let fruit = self.fruits[dist.sample(&mut self.rng)];
-                member.receive(fruit);
+                mutations.push(StateMutation::AddFruitToMember {
+                    member_id: member.id,
+                    fruit: self.fruits[dist.sample(&mut self.rng)],
+                });
             }
         }
+        mutations
     }
 }
 
@@ -94,9 +99,22 @@ mod tests {
     use crate::{
         bag::Bag,
         community::Community,
+        effect::Effect,
+        event::SequenceId,
         fruit::{GRAPES, STRAWBERRY},
+        id::IntegerIdentifier,
         member::Member,
     };
+
+    fn apply_grant(community: &mut Community, mutations: Vec<StateMutation>) {
+        Effect {
+            id: SequenceId::from_u64(1),
+            event_id: SequenceId::from_u64(0),
+            community_id: community.id,
+            mutations,
+        }
+        .apply(community);
+    }
 
     #[test]
     fn grants_fruits_to_each_member() {
@@ -104,7 +122,8 @@ mod tests {
         let mut community = Community::new();
         community.add_member(Member::new("Alice"));
         community.add_member(Member::new("Bob"));
-        granter.grant(&mut community, 3);
+        let mutations = granter.grant(&community, 3);
+        apply_grant(&mut community, mutations);
         assert!(community.members.values().all(|m| m.bag.total() == 3));
     }
 
@@ -116,7 +135,8 @@ mod tests {
         let id = member.id;
         community.add_member(member);
 
-        granter.grant(&mut community, 2);
+        let mutations = granter.grant(&community, 2);
+        apply_grant(&mut community, mutations);
 
         // Expected value determined by running with seed 0 and neutral luck.
         // Update this if FRUITS or the weight formula changes.
@@ -142,7 +162,8 @@ mod tests {
         let id = member.id;
         community.add_member(member);
 
-        granter.grant(&mut community, 3);
+        let mutations = granter.grant(&community, 3);
+        apply_grant(&mut community, mutations);
 
         let bag = &community.members[&id].bag;
         assert_eq!(bag.total(), 3);

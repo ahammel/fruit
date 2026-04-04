@@ -1,7 +1,8 @@
-use crate::community::Community;
+use crate::{community::Community, effect::StateMutation};
 
 /// Port for distributing fruits to all members of a [`Community`].
 pub trait Granter {
-    /// Grants `count` fruits to each member of `community`.
-    fn grant(&mut self, community: &mut Community, count: usize);
+    /// Compute `count` fruit distributions for each member of `community` and return
+    /// the resulting state mutations. The community is not modified.
+    fn grant(&mut self, community: &Community, count: usize) -> Vec<StateMutation>;
 }

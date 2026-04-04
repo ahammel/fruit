@@ -10,7 +10,13 @@
       "Bash(rustc --version)",
       "Bash(cargo --version)",
       "Bash(cargo llvm-cov:*)",
-      "Bash(rustup run:*)"
+      "Bash(rustup run:*)",
+      "Bash(rustup component:*)",
+      "Bash(make p:*)",
+      "Bash(make l:*)",
+      "Bash(make t:*)",
+      "Bash(make tc:*)",
+      "Bash(python3 -c ':*)"
     ]
   }
 }

@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
-    id::UuidIdentifier,
+    effect::Effect,
+    event::SequenceId,
+    id::{IntegerIdentifier, UuidIdentifier},
     member::{Member, MemberId},
 };
 
@@ -29,6 +31,11 @@ pub struct Community {
     _luck: u16,
     /// Members belonging to this community, keyed by their ID.
     pub members: HashMap<MemberId, Member>,
+    /// The event log position up to which this snapshot has been computed.
+    ///
+    /// [`SequenceId::zero()`] means no effects have been applied yet; the snapshot
+    /// reflects only the community's initial structural state (members, luck).
+    pub version: SequenceId,
 }
 
 impl Community {
@@ -38,6 +45,7 @@ impl Community {
             id: CommunityId::new(),
             _luck: 0,
             members: HashMap::new(),
+            version: SequenceId::zero(),
         }
     }
 
@@ -64,6 +72,12 @@ impl Community {
         self
     }
 
+    /// Overrides the version. Useful when reconstituting a community from stored data.
+    pub fn with_version(mut self, version: SequenceId) -> Self {
+        self.version = version;
+        self
+    }
+
     /// Returns this community's luck score normalised to `[0.0, 1.0]`.
     ///
     /// `0.0` is neutral luck; `1.0` is the maximum (`u16::MAX`).
@@ -85,6 +99,18 @@ impl Community {
     /// if no such member existed.
     pub fn remove_member(&mut self, id: MemberId) -> Option<Member> {
         self.members.remove(&id)
+    }
+
+    /// Applies `effects` to this community in sequence, advancing [`version`][Self::version]
+    /// to the sequence ID of the last applied effect.
+    ///
+    /// Effects must be supplied in ascending sequence-ID order. If `effects` is empty
+    /// the community is unchanged.
+    pub fn apply_effects(&mut self, effects: impl IntoIterator<Item = Effect>) {
+        for effect in effects {
+            effect.apply(self);
+            self.version = effect.id;
+        }
     }
 }
 
@@ -168,5 +194,47 @@ mod tests {
     fn with_luck_f64_sets_luck() {
         let community = Community::new().with_luck_f64(0.5);
         assert!((community.luck() - 0.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn apply_effects_applies_mutations_and_advances_version() {
+        use crate::{
+            effect::{Effect, StateMutation},
+            fruit::STRAWBERRY,
+            id::IntegerIdentifier,
+        };
+
+        let mut community = Community::new();
+        let member = Member::new("Alice");
+        let alice_id = member.id;
+        community.add_member(member);
+
+        let v1 = SequenceId::from_u64(1);
+        let v2 = SequenceId::from_u64(2);
+        let effects = vec![
+            Effect {
+                id: v1,
+                event_id: SequenceId::from_u64(0),
+                community_id: community.id,
+                mutations: vec![StateMutation::AddFruitToMember {
+                    member_id: alice_id,
+                    fruit: STRAWBERRY,
+                }],
+            },
+            Effect {
+                id: v2,
+                event_id: v1,
+                community_id: community.id,
+                mutations: vec![StateMutation::AddFruitToMember {
+                    member_id: alice_id,
+                    fruit: STRAWBERRY,
+                }],
+            },
+        ];
+
+        community.apply_effects(effects);
+
+        assert_eq!(community.version, v2);
+        assert_eq!(community.members[&alice_id].bag.count(STRAWBERRY), 2);
     }
 }

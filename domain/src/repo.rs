@@ -1,12 +1,17 @@
 use crate::{
     community::{Community, CommunityId},
     error::Error,
+    event::SequenceId,
 };
 
 /// Port for loading a [`Community`] from storage.
 pub trait CommunityProvider {
-    /// Returns the community with the given `id`, or `None` if it does not exist.
-    fn get(&self, id: CommunityId) -> Result<Option<Community>, Error>;
+    /// Returns the community snapshot at the given `version`, or `None` if not found.
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error>;
+
+    /// Returns the most recently stored community snapshot for `id`, or `None` if the
+    /// community has never been persisted.
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error>;
 }
 
 /// Port for persisting a [`Community`] to storage.
@@ -15,8 +20,15 @@ pub trait CommunityProvider {
 /// permitted; implementations are expected to manage shared state internally
 /// (e.g. via a connection pool or mutex).
 pub trait CommunityPersistor {
-    /// Writes `community` to storage and returns the saved value.
+    /// Writes `community` as a new snapshot version.
+    ///
+    /// Returns `Err` if a snapshot at `community.version` already exists for this
+    /// community. Use [`replace`][CommunityPersistor::replace] to overwrite an existing
+    /// version intentionally.
     fn put(&self, community: Community) -> Result<Community, Error>;
+
+    /// Overwrites an existing snapshot at `community.version`, or inserts it if absent.
+    fn replace(&self, community: Community) -> Result<Community, Error>;
 }
 
 /// Combined read/write port. Implement this when CQRS separation is not needed.

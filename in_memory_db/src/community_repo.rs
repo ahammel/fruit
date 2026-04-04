@@ -1,17 +1,27 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{
+    collections::{BTreeMap, HashMap},
+    io,
+    sync::RwLock,
+};
 
 use gib_fruit_domain::{
     community::{Community, CommunityId},
     error::Error,
+    event::SequenceId,
+    id::{IntegerIdentifier, UuidIdentifier},
     repo::{CommunityPersistor, CommunityProvider, CommunityRepo},
 };
 
-/// In-memory implementation of [`CommunityRepo`], backed by a [`HashMap`].
+/// In-memory implementation of [`CommunityRepo`].
 ///
-/// Reads and writes are protected by a [`RwLock`], allowing concurrent reads
-/// and exclusive writes without requiring `&mut self`.
+/// Communities are stored as versioned snapshots: each call to [`put`] records
+/// the community at its current [`SequenceId`] version. Reads and writes are
+/// protected by a [`RwLock`], allowing concurrent reads and exclusive writes
+/// without `&mut self`.
+///
+/// [`put`]: CommunityPersistor::put
 pub struct InMemoryCommunityRepo {
-    store: RwLock<HashMap<CommunityId, Community>>,
+    store: RwLock<HashMap<CommunityId, BTreeMap<SequenceId, Community>>>,
 }
 
 impl InMemoryCommunityRepo {
@@ -30,14 +40,50 @@ impl Default for InMemoryCommunityRepo {
 }
 
 impl CommunityProvider for InMemoryCommunityRepo {
-    fn get(&self, id: CommunityId) -> Result<Option<Community>, Error> {
-        Ok(self.store.read()?.get(&id).cloned())
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error> {
+        Ok(self
+            .store
+            .read()?
+            .get(&id)
+            .and_then(|versions| versions.get(&version))
+            .cloned())
+    }
+
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error> {
+        Ok(self
+            .store
+            .read()?
+            .get(&id)
+            .and_then(|versions| versions.values().next_back())
+            .cloned())
     }
 }
 
 impl CommunityPersistor for InMemoryCommunityRepo {
     fn put(&self, community: Community) -> Result<Community, Error> {
-        self.store.write()?.insert(community.id, community.clone());
+        let mut store = self.store.write()?;
+        let versions = store.entry(community.id).or_default();
+        if versions.contains_key(&community.version) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "community {} already has a snapshot at version {}",
+                    community.id.as_uuid(),
+                    community.version.as_u64(),
+                ),
+            )
+            .into());
+        }
+        versions.insert(community.version, community.clone());
+        Ok(community)
+    }
+
+    fn replace(&self, community: Community) -> Result<Community, Error> {
+        self.store
+            .write()?
+            .entry(community.id)
+            .or_default()
+            .insert(community.version, community.clone());
         Ok(community)
     }
 }
@@ -47,21 +93,44 @@ impl CommunityRepo for InMemoryCommunityRepo {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event_log::InMemoryEventLog;
     use gib_fruit_domain::{id::UuidIdentifier, store::CommunityStore};
 
     fn repo() -> InMemoryCommunityRepo {
         InMemoryCommunityRepo::new()
     }
 
-    fn store() -> CommunityStore<InMemoryCommunityRepo> {
-        CommunityStore::new(InMemoryCommunityRepo::new())
+    fn store() -> CommunityStore<InMemoryCommunityRepo, InMemoryEventLog> {
+        CommunityStore::new(InMemoryCommunityRepo::new(), InMemoryEventLog::new())
+    }
+
+    /// Forces monomorphization of `EventLogPersistor::append_event` for type `P`,
+    /// preventing LLVM from inlining delegation wrappers (e.g. `&InMemoryEventLog`).
+    fn append_event_via<P: gib_fruit_domain::event_log::EventLogPersistor>(
+        p: P,
+        community_id: CommunityId,
+        count: usize,
+    ) -> gib_fruit_domain::event::Event {
+        p.append_event(
+            community_id,
+            gib_fruit_domain::event::EventPayload::Grant { count },
+        )
+        .unwrap()
+    }
+
+    /// Forces monomorphization of `EventLogPersistor::append_effect` for type `P`.
+    fn append_effect_via<P: gib_fruit_domain::event_log::EventLogPersistor>(
+        p: P,
+        event_id: gib_fruit_domain::event::SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<gib_fruit_domain::effect::StateMutation>,
+    ) -> gib_fruit_domain::effect::Effect {
+        p.append_effect(event_id, community_id, mutations).unwrap()
     }
 
     // --- helpers ---
 
-    /// Creates a `RwLock<HashMap>` that has been poisoned by a panicking writer thread.
-    /// Used to exercise the `?` error branches in `get` and `put`.
-    fn poisoned_store() -> RwLock<HashMap<CommunityId, Community>> {
+    fn poisoned_store() -> RwLock<HashMap<CommunityId, BTreeMap<SequenceId, Community>>> {
         use std::sync::Arc;
         let lock = Arc::new(RwLock::new(HashMap::new()));
         let l = Arc::clone(&lock);
@@ -79,7 +148,7 @@ mod tests {
     #[test]
     fn default_produces_empty_repo() {
         assert!(InMemoryCommunityRepo::default()
-            .get(CommunityId::new())
+            .get(CommunityId::new(), SequenceId::zero())
             .unwrap()
             .is_none());
     }
@@ -91,7 +160,15 @@ mod tests {
         let repo = InMemoryCommunityRepo {
             store: poisoned_store(),
         };
-        assert!(repo.get(CommunityId::new()).is_err());
+        assert!(repo.get(CommunityId::new(), SequenceId::zero()).is_err());
+    }
+
+    #[test]
+    fn get_latest_returns_err_when_lock_is_poisoned() {
+        let repo = InMemoryCommunityRepo {
+            store: poisoned_store(),
+        };
+        assert!(repo.get_latest(CommunityId::new()).is_err());
     }
 
     #[test]
@@ -102,11 +179,27 @@ mod tests {
         assert!(repo.put(Community::new()).is_err());
     }
 
-    // --- repo tests ---
+    #[test]
+    fn replace_returns_err_when_lock_is_poisoned() {
+        let repo = InMemoryCommunityRepo {
+            store: poisoned_store(),
+        };
+        assert!(repo.replace(Community::new()).is_err());
+    }
+
+    // --- repo: put ---
 
     #[test]
     fn repo_get_returns_none_for_unknown_id() {
-        assert!(repo().get(CommunityId::new()).unwrap().is_none());
+        assert!(repo()
+            .get(CommunityId::new(), SequenceId::zero())
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn repo_get_latest_returns_none_for_unknown_id() {
+        assert!(repo().get_latest(CommunityId::new()).unwrap().is_none());
     }
 
     #[test]
@@ -114,26 +207,79 @@ mod tests {
         let repo = repo();
         let community = Community::new();
         let id = community.id;
+        let version = community.version;
         repo.put(community.clone()).unwrap();
-        assert_eq!(repo.get(id).unwrap(), Some(community));
+        assert_eq!(repo.get(id, version).unwrap(), Some(community));
     }
 
     #[test]
-    fn repo_put_overwrites_existing_community() {
+    fn repo_put_and_get_latest_returns_latest() {
         let repo = repo();
         let community = Community::new();
         let id = community.id;
-        repo.put(community).unwrap();
-        let updated = Community::new().with_id(id).with_luck(500);
-        repo.put(updated.clone()).unwrap();
-        assert_eq!(repo.get(id).unwrap(), Some(updated));
+        repo.put(community.clone()).unwrap();
+        assert_eq!(repo.get_latest(id).unwrap(), Some(community));
     }
 
-    // --- store tests ---
+    #[test]
+    fn repo_put_fails_on_duplicate_version() {
+        let repo = repo();
+        let community = Community::new();
+        repo.put(community.clone()).unwrap();
+        assert!(repo.put(community).is_err());
+    }
+
+    #[test]
+    fn repo_get_latest_returns_highest_version() {
+        let repo = repo();
+        let community = Community::new();
+        let id = community.id;
+        let v0 = community.version;
+        repo.put(community).unwrap();
+        let v1 = SequenceId::from_u64(1);
+        let newer = Community::new().with_id(id).with_luck(500).with_version(v1);
+        repo.put(newer.clone()).unwrap();
+        assert_eq!(repo.get_latest(id).unwrap(), Some(newer));
+        assert!(repo.get(id, v0).unwrap().is_some());
+    }
+
+    // --- repo: replace ---
+
+    #[test]
+    fn repo_replace_inserts_when_absent() {
+        let repo = repo();
+        let community = Community::new();
+        let id = community.id;
+        let version = community.version;
+        repo.replace(community.clone()).unwrap();
+        assert_eq!(repo.get(id, version).unwrap(), Some(community));
+    }
+
+    #[test]
+    fn repo_replace_overwrites_existing_version() {
+        let repo = repo();
+        let community = Community::new();
+        let id = community.id;
+        let version = community.version;
+        repo.put(community).unwrap();
+        let updated = Community::new().with_id(id).with_luck(500);
+        repo.replace(updated.clone()).unwrap();
+        assert_eq!(repo.get(id, version).unwrap(), Some(updated));
+    }
+
+    // --- store ---
 
     #[test]
     fn store_get_returns_none_for_unknown_id() {
-        assert!(store().get(CommunityId::new()).unwrap().is_none());
+        assert!(store()
+            .get(CommunityId::new(), SequenceId::zero())
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn store_get_latest_returns_none_for_unknown_id() {
+        assert!(store().get_latest(CommunityId::new()).unwrap().is_none());
     }
 
     #[test]
@@ -141,18 +287,144 @@ mod tests {
         let store = store();
         let community = Community::new();
         let id = community.id;
+        let version = community.version;
         store.put(community.clone()).unwrap();
-        assert_eq!(store.get(id).unwrap(), Some(community));
+        assert_eq!(store.get(id, version).unwrap(), Some(community));
     }
 
     #[test]
-    fn store_put_overwrites_existing_community() {
+    fn store_put_and_get_latest_returns_community() {
         let store = store();
         let community = Community::new();
         let id = community.id;
+        store.put(community.clone()).unwrap();
+        assert_eq!(store.get_latest(id).unwrap(), Some(community));
+    }
+
+    #[test]
+    fn store_replace_overwrites_existing_version() {
+        let store = store();
+        let community = Community::new();
+        let id = community.id;
+        let version = community.version;
         store.put(community).unwrap();
         let updated = Community::new().with_id(id).with_luck(500);
-        store.put(updated.clone()).unwrap();
-        assert_eq!(store.get(id).unwrap(), Some(updated));
+        store.replace(updated.clone()).unwrap();
+        assert_eq!(store.get(id, version).unwrap(), Some(updated));
+    }
+
+    #[test]
+    fn store_get_latest_applies_pending_effects_with_owned_event_log() {
+        use crate::event_log::InMemoryEventLog;
+        use gib_fruit_domain::{
+            effect::StateMutation, event::EventPayload, event_log::EventLogPersistor,
+            fruit::STRAWBERRY, member::Member,
+        };
+
+        // Build community and pre-populate event log before moving it into the store.
+        let mut community = Community::new();
+        let member = Member::new("Alice");
+        let alice_id = member.id;
+        community.add_member(member);
+        let id = community.id;
+
+        let event_log = InMemoryEventLog::new();
+        let event = event_log
+            .append_event(id, EventPayload::Grant { count: 1 })
+            .unwrap();
+        event_log
+            .append_effect(
+                event.id,
+                id,
+                vec![StateMutation::AddFruitToMember {
+                    member_id: alice_id,
+                    fruit: STRAWBERRY,
+                }],
+            )
+            .unwrap();
+
+        // Store community at version zero, then hand ownership of the log to the store.
+        let repo = InMemoryCommunityRepo::new();
+        repo.put(community).unwrap();
+        let store = CommunityStore::new(repo, event_log);
+
+        // get_latest must apply the pending effect and advance the version.
+        let latest = store.get_latest(id).unwrap().unwrap();
+        assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
+    }
+
+    // --- store via &InMemoryEventLog: covers delegation impls and store.init / get_latest with effects ---
+
+    #[test]
+    fn store_ref_event_log_init_creates_persisted_community() {
+        use crate::event_log::InMemoryEventLog;
+        let event_log = InMemoryEventLog::new();
+        let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
+        let community = store.init().unwrap();
+        assert_eq!(store.get_latest(community.id).unwrap(), Some(community));
+    }
+
+    #[test]
+    fn store_ref_event_log_get_latest_applies_pending_effects() {
+        use crate::event_log::InMemoryEventLog;
+        use gib_fruit_domain::{effect::StateMutation, fruit::STRAWBERRY, member::Member};
+
+        let event_log = InMemoryEventLog::new();
+        let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
+
+        // create a community with one member
+        let mut community = Community::new();
+        let member = Member::new("Alice");
+        let alice_id = member.id;
+        community.add_member(member);
+        store.put(community.clone()).unwrap();
+        let id = community.id;
+
+        // record an event + effect via generic helper (forces &InMemoryEventLog monomorphization)
+        let event = append_event_via(&event_log, id, 1);
+        append_effect_via(
+            &event_log,
+            event.id,
+            id,
+            vec![StateMutation::AddFruitToMember {
+                member_id: alice_id,
+                fruit: STRAWBERRY,
+            }],
+        );
+
+        // get_latest should apply the pending effect; version advances to the effect's sequence ID
+        let latest = store.get_latest(id).unwrap().unwrap();
+        assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
+        assert!(latest.version > event.id); // effect id > event id (shared sequence)
+    }
+
+    #[test]
+    fn store_ref_event_log_query_methods_delegate_through_ref() {
+        use crate::event_log::InMemoryEventLog;
+        use gib_fruit_domain::{event::EventPayload, event_log::EventLogPersistor, record::Record};
+
+        let event_log = InMemoryEventLog::new();
+        let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
+        let cid = CommunityId::new();
+
+        // append via direct log so sequence starts at 1
+        let event = event_log
+            .append_event(cid, EventPayload::Grant { count: 1 })
+            .unwrap();
+        let effect = event_log.append_effect(event.id, cid, vec![]).unwrap();
+
+        // get_record, get_effect_for_event, get_latest_events all go through &InMemoryEventLog
+        assert_eq!(
+            store.get_record(event.id).unwrap(),
+            Some(Record::from(event))
+        );
+        assert_eq!(
+            store.get_effect_for_event(event.id).unwrap(),
+            Some(effect.clone())
+        );
+        assert_eq!(
+            store.get_latest_records(cid, 5).unwrap(),
+            vec![Record::from(effect), Record::from(event)]
+        );
     }
 }
