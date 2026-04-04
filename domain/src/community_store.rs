@@ -188,6 +188,12 @@ mod tests {
     // --- error propagation tests ---
 
     #[test]
+    fn init_propagates_put_error() {
+        let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
+        assert!(store.init().is_err());
+    }
+
+    #[test]
     fn get_propagates_repo_error() {
         let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
         assert!(store.get(CommunityId::new(), SequenceId::zero()).is_err());

@@ -135,6 +135,12 @@ mod tests {
     use crate::id::UuidIdentifier;
 
     #[test]
+    fn community_id_returns_id() {
+        let community = Community::new();
+        assert_eq!(community.community_id(), community.id);
+    }
+
+    #[test]
     fn new_community_is_empty() {
         let community = Community::new();
         assert_eq!(community, Community::new().with_id(community.id));

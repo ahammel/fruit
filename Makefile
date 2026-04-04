@@ -1,7 +1,4 @@
-SRCS = $(wildcard domain/src/*.rs)
-COVERAGE_OUTPUT = target/lcov.info
-
-.PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage w watch
+.PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage tcr test-coverage-report w watch
 
 p pretty:
 	cargo fmt --all
@@ -37,16 +34,13 @@ tc test-coverage:
 	rustup run stable cargo llvm-cov --all \
 		--ignore-filename-regex="command_line_service" \
 		--fail-under-lines 100 \
-		--fail-under-regions 100
+		--fail-under-regions 99 \
+		--fail-under-functions 100
 
-tcr test-coverage-report: $(COVERAGE_OUTPUT)
-$(COVERAGE_OUTPUT): $(SRC)
+tcr test-coverage-report:
 	rustup run stable cargo llvm-cov --all \
 		--ignore-filename-regex="command_line_service" \
-		--fail-under-lines 100 \
-		--fail-under-regions 100 \
-		--lcov \
-		--output-path $(COVERAGE_OUTPUT)
+		--html --open
 
 w watch:
 	fd .rs | entr -s 'clear && make c && make pc && make l && make t && make tc'

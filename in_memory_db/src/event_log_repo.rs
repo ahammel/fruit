@@ -352,11 +352,21 @@ mod tests {
     }
 
     #[test]
-    fn get_latest_events_returns_err_when_lock_is_poisoned() {
+    fn get_latest_events_returns_err_when_events_lock_is_poisoned() {
         let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: poisoned_event_map(),
             effects_by_event: RwLock::new(HashMap::new()),
+        };
+        assert!(log.get_latest_records(community_id(), 5).is_err());
+    }
+
+    #[test]
+    fn get_latest_events_returns_err_when_effects_lock_is_poisoned() {
+        let log = InMemoryEventLogRepo {
+            sequence: AtomicU64::new(0),
+            events: RwLock::new(HashMap::new()),
+            effects_by_event: poisoned_effect_map(),
         };
         assert!(log.get_latest_records(community_id(), 5).is_err());
     }
