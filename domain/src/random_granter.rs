@@ -5,7 +5,7 @@ use rand::{
 
 use crate::{
     community::Community,
-    effect::StateMutation,
+    event_log::StateMutation,
     fruit::{Category, Fruit, FRUITS},
     granter::Granter,
 };
@@ -99,8 +99,8 @@ mod tests {
     use crate::{
         bag::Bag,
         community::Community,
-        effect::Effect,
-        event::SequenceId,
+        event_log::Effect,
+        event_log::SequenceId,
         fruit::{GRAPES, STRAWBERRY},
         id::IntegerIdentifier,
         member::Member,

@@ -1,7 +1,7 @@
 use crate::{
     community::{Community, CommunityId},
     error::Error,
-    event::SequenceId,
+    event_log::SequenceId,
 };
 
 /// Port for loading a [`Community`] from storage.

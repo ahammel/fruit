@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
-    effect::Effect,
-    event::SequenceId,
+    event_log::{Effect, SequenceId},
     id::{IntegerIdentifier, UuidIdentifier},
     member::{Member, MemberId},
 };
@@ -21,6 +20,10 @@ impl UuidIdentifier for CommunityId {
     fn as_uuid(&self) -> Uuid {
         self.0
     }
+}
+
+pub trait HasCommunityId {
+    fn community_id(&self) -> CommunityId;
 }
 
 /// A group of members that share a collective luck modifier.
@@ -120,6 +123,12 @@ impl Default for Community {
     }
 }
 
+impl HasCommunityId for Community {
+    fn community_id(&self) -> CommunityId {
+        self.id
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,7 +208,7 @@ mod tests {
     #[test]
     fn apply_effects_applies_mutations_and_advances_version() {
         use crate::{
-            effect::{Effect, StateMutation},
+            event_log::{Effect, StateMutation},
             fruit::STRAWBERRY,
             id::IntegerIdentifier,
         };

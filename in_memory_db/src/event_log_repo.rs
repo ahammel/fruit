@@ -9,12 +9,12 @@ use std::{
 
 use gib_fruit_domain::{
     community::CommunityId,
-    effect::{Effect, StateMutation},
     error::Error,
-    event::{Event, EventPayload, SequenceId},
-    event_log::{EventLogPersistor, EventLogProvider, EventLogRepo},
+    event_log::{
+        Effect, Event, EventPayload, HasSequenceId as _, Record, SequenceId, StateMutation,
+    },
+    event_log_repo::{EventLogPersistor, EventLogProvider, EventLogRepo},
     id::IntegerIdentifier,
-    record::Record,
 };
 
 /// In-memory implementation of [`EventLogRepo`].
@@ -22,14 +22,14 @@ use gib_fruit_domain::{
 /// Events and effects share a single auto-incrementing sequence, giving a total
 /// ordering across all entries. Both collections are protected by separate
 /// [`RwLock`]s to allow concurrent reads.
-pub struct InMemoryEventLog {
+pub struct InMemoryEventLogRepo {
     sequence: AtomicU64,
     events: RwLock<HashMap<SequenceId, Event>>,
     effects_by_event: RwLock<HashMap<SequenceId, Effect>>,
 }
 
-impl InMemoryEventLog {
-    /// Creates a new empty `InMemoryEventLog`.
+impl InMemoryEventLogRepo {
+    /// Creates a new empty `InMemoryEventLogRepo`.
     pub fn new() -> Self {
         Self {
             sequence: AtomicU64::new(0),
@@ -43,16 +43,16 @@ impl InMemoryEventLog {
     }
 }
 
-impl Default for InMemoryEventLog {
+impl Default for InMemoryEventLogRepo {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl EventLogProvider for InMemoryEventLog {
+impl EventLogProvider for InMemoryEventLogRepo {
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
         if let Some(event) = self.events.read()?.get(&id).copied() {
-            return Ok(Some(Record::from(event)));
+            return Ok(Some(event.into()));
         }
         let effect = self
             .effects_by_event
@@ -60,7 +60,7 @@ impl EventLogProvider for InMemoryEventLog {
             .values()
             .find(|e| e.id == id)
             .cloned();
-        Ok(effect.map(Record::from))
+        Ok(effect.map(Into::into))
     }
 
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
@@ -95,7 +95,7 @@ impl EventLogProvider for InMemoryEventLog {
             .filter(|e| e.community_id == community_id)
             .for_each({
                 |e| {
-                    records.push(Record::from(*e));
+                    records.push((*e).into());
                 }
             });
 
@@ -104,16 +104,16 @@ impl EventLogProvider for InMemoryEventLog {
             .values()
             .filter(|e| e.community_id == community_id)
             .for_each(|e| {
-                records.push(Record::from(e.clone()));
+                records.push(e.clone().into());
             });
 
-        records.sort_by_key(|e| std::cmp::Reverse(e.id()));
+        records.sort_by_key(|e| std::cmp::Reverse(e.sequence_id()));
         records.truncate(n);
         Ok(records)
     }
 }
 
-impl EventLogPersistor for InMemoryEventLog {
+impl EventLogPersistor for InMemoryEventLogRepo {
     fn append_event(
         &self,
         community_id: CommunityId,
@@ -163,9 +163,9 @@ impl EventLogPersistor for InMemoryEventLog {
     }
 }
 
-impl EventLogRepo for InMemoryEventLog {}
+impl EventLogRepo for InMemoryEventLogRepo {}
 
-impl EventLogProvider for &InMemoryEventLog {
+impl EventLogProvider for &InMemoryEventLogRepo {
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
         (*self).get_record(id)
     }
@@ -191,7 +191,7 @@ impl EventLogProvider for &InMemoryEventLog {
     }
 }
 
-impl EventLogPersistor for &InMemoryEventLog {
+impl EventLogPersistor for &InMemoryEventLogRepo {
     fn append_event(
         &self,
         community_id: CommunityId,
@@ -210,17 +210,17 @@ impl EventLogPersistor for &InMemoryEventLog {
     }
 }
 
-impl EventLogRepo for &InMemoryEventLog {}
+impl EventLogRepo for &InMemoryEventLogRepo {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use gib_fruit_domain::{
-        fruit::STRAWBERRY, id::UuidIdentifier, member::MemberId, record::Record,
+        community::HasCommunityId, fruit::STRAWBERRY, id::UuidIdentifier, member::MemberId,
     };
 
-    fn log() -> InMemoryEventLog {
-        InMemoryEventLog::new()
+    fn log() -> InMemoryEventLogRepo {
+        InMemoryEventLogRepo::new()
     }
 
     fn community_id() -> CommunityId {
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn default_produces_empty_log() {
-        let log = InMemoryEventLog::default();
+        let log = InMemoryEventLogRepo::default();
         assert!(log.get_record(SequenceId::from_u64(1)).unwrap().is_none());
         assert!(log
             .get_effect_for_event(SequenceId::from_u64(1))
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn get_record_returns_err_when_event_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: poisoned_event_map(),
             effects_by_event: RwLock::new(HashMap::new()),
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn get_record_returns_err_when_effect_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: RwLock::new(HashMap::new()),
             effects_by_event: poisoned_effect_map(),
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn append_event_returns_err_when_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: poisoned_event_map(),
             effects_by_event: RwLock::new(HashMap::new()),
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn get_effect_for_event_returns_err_when_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: RwLock::new(HashMap::new()),
             effects_by_event: poisoned_effect_map(),
@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn append_effect_returns_err_when_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: RwLock::new(HashMap::new()),
             effects_by_event: poisoned_effect_map(),
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn get_effects_after_returns_err_when_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: RwLock::new(HashMap::new()),
             effects_by_event: poisoned_effect_map(),
@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn get_latest_events_returns_err_when_lock_is_poisoned() {
-        let log = InMemoryEventLog {
+        let log = InMemoryEventLogRepo {
             sequence: AtomicU64::new(0),
             events: poisoned_event_map(),
             effects_by_event: RwLock::new(HashMap::new()),
@@ -372,11 +372,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             log.get_record(event.id).unwrap(),
-            Some(Record::from(Event {
-                id: event.id,
-                community_id: cid,
-                payload: EventPayload::Grant { count: 3 },
-            }))
+            Some(
+                Event {
+                    id: event.id,
+                    community_id: cid,
+                    payload: EventPayload::Grant { count: 3 },
+                }
+                .into()
+            )
         );
     }
 
@@ -390,12 +393,15 @@ mod tests {
         let effect = log.append_effect(event.id, cid, vec![]).unwrap();
         assert_eq!(
             log.get_record(effect.id).unwrap(),
-            Some(Record::from(Effect {
-                id: effect.id,
-                event_id: event.id,
-                community_id: cid,
-                mutations: vec![],
-            }))
+            Some(
+                Effect {
+                    id: effect.id,
+                    event_id: event.id,
+                    community_id: cid,
+                    mutations: vec![],
+                }
+                .into()
+            )
         );
     }
 
@@ -497,7 +503,9 @@ mod tests {
         }
         let events = log.get_latest_records(cid, 3).unwrap();
         assert_eq!(events.len(), 3);
-        assert!(events.windows(2).all(|w| w[0].id() > w[1].id()));
+        assert!(events
+            .windows(2)
+            .all(|w| w[0].sequence_id() > w[1].sequence_id()));
     }
 
     #[test]
@@ -530,7 +538,7 @@ mod tests {
             .is_empty());
     }
 
-    // --- &InMemoryEventLog delegation ---
+    // --- &InMemoryEventLogRepo delegation ---
 
     #[test]
     fn ref_delegates_get_record() {
@@ -539,7 +547,7 @@ mod tests {
         let event = log
             .append_event(cid, EventPayload::Grant { count: 1 })
             .unwrap();
-        assert_eq!(log.get_record(event.id).unwrap(), Some(Record::from(event)));
+        assert_eq!(log.get_record(event.id).unwrap(), Some(event.into()));
     }
 
     #[test]
@@ -574,10 +582,7 @@ mod tests {
         let event = log
             .append_event(cid, EventPayload::Grant { count: 1 })
             .unwrap();
-        assert_eq!(
-            log.get_latest_records(cid, 5).unwrap(),
-            vec![Record::from(event)]
-        );
+        assert_eq!(log.get_latest_records(cid, 5).unwrap(), vec![event.into()]);
     }
 
     #[test]
@@ -587,7 +592,7 @@ mod tests {
         let event = log
             .append_event(cid, EventPayload::Grant { count: 1 })
             .unwrap();
-        assert_eq!(log.get_record(event.id).unwrap(), Some(Record::from(event)));
+        assert_eq!(log.get_record(event.id).unwrap(), Some(event.into()));
     }
 
     #[test]

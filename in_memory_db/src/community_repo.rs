@@ -6,10 +6,10 @@ use std::{
 
 use gib_fruit_domain::{
     community::{Community, CommunityId},
+    community_repo::{CommunityPersistor, CommunityProvider, CommunityRepo},
     error::Error,
-    event::SequenceId,
+    event_log::SequenceId,
     id::{IntegerIdentifier, UuidIdentifier},
-    repo::{CommunityPersistor, CommunityProvider, CommunityRepo},
 };
 
 /// In-memory implementation of [`CommunityRepo`].
@@ -93,38 +93,38 @@ impl CommunityRepo for InMemoryCommunityRepo {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event_log::InMemoryEventLog;
-    use gib_fruit_domain::{id::UuidIdentifier, store::CommunityStore};
+    use crate::event_log_repo::InMemoryEventLogRepo;
+    use gib_fruit_domain::{community_store::CommunityStore, id::UuidIdentifier};
 
     fn repo() -> InMemoryCommunityRepo {
         InMemoryCommunityRepo::new()
     }
 
-    fn store() -> CommunityStore<InMemoryCommunityRepo, InMemoryEventLog> {
-        CommunityStore::new(InMemoryCommunityRepo::new(), InMemoryEventLog::new())
+    fn store() -> CommunityStore<InMemoryCommunityRepo, InMemoryEventLogRepo> {
+        CommunityStore::new(InMemoryCommunityRepo::new(), InMemoryEventLogRepo::new())
     }
 
     /// Forces monomorphization of `EventLogPersistor::append_event` for type `P`,
-    /// preventing LLVM from inlining delegation wrappers (e.g. `&InMemoryEventLog`).
-    fn append_event_via<P: gib_fruit_domain::event_log::EventLogPersistor>(
+    /// preventing LLVM from inlining delegation wrappers (e.g. `&InMemoryEventLogRepo`).
+    fn append_event_via<P: gib_fruit_domain::event_log_repo::EventLogPersistor>(
         p: P,
         community_id: CommunityId,
         count: usize,
-    ) -> gib_fruit_domain::event::Event {
+    ) -> gib_fruit_domain::event_log::Event {
         p.append_event(
             community_id,
-            gib_fruit_domain::event::EventPayload::Grant { count },
+            gib_fruit_domain::event_log::EventPayload::Grant { count },
         )
         .unwrap()
     }
 
     /// Forces monomorphization of `EventLogPersistor::append_effect` for type `P`.
-    fn append_effect_via<P: gib_fruit_domain::event_log::EventLogPersistor>(
+    fn append_effect_via<P: gib_fruit_domain::event_log_repo::EventLogPersistor>(
         p: P,
-        event_id: gib_fruit_domain::event::SequenceId,
+        event_id: gib_fruit_domain::event_log::SequenceId,
         community_id: CommunityId,
-        mutations: Vec<gib_fruit_domain::effect::StateMutation>,
-    ) -> gib_fruit_domain::effect::Effect {
+        mutations: Vec<gib_fruit_domain::event_log::StateMutation>,
+    ) -> gib_fruit_domain::event_log::Effect {
         p.append_effect(event_id, community_id, mutations).unwrap()
     }
 
@@ -315,9 +315,9 @@ mod tests {
 
     #[test]
     fn store_get_latest_applies_pending_effects_with_owned_event_log() {
-        use crate::event_log::InMemoryEventLog;
+        use crate::event_log_repo::InMemoryEventLogRepo;
         use gib_fruit_domain::{
-            effect::StateMutation, event::EventPayload, event_log::EventLogPersistor,
+            event_log::EventPayload, event_log::StateMutation, event_log_repo::EventLogPersistor,
             fruit::STRAWBERRY, member::Member,
         };
 
@@ -328,7 +328,7 @@ mod tests {
         community.add_member(member);
         let id = community.id;
 
-        let event_log = InMemoryEventLog::new();
+        let event_log = InMemoryEventLogRepo::new();
         let event = event_log
             .append_event(id, EventPayload::Grant { count: 1 })
             .unwrap();
@@ -353,12 +353,12 @@ mod tests {
         assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
     }
 
-    // --- store via &InMemoryEventLog: covers delegation impls and store.init / get_latest with effects ---
+    // --- store via &InMemoryEventLogRepo: covers delegation impls and store.init / get_latest with effects ---
 
     #[test]
     fn store_ref_event_log_init_creates_persisted_community() {
-        use crate::event_log::InMemoryEventLog;
-        let event_log = InMemoryEventLog::new();
+        use crate::event_log_repo::InMemoryEventLogRepo;
+        let event_log = InMemoryEventLogRepo::new();
         let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
         let community = store.init().unwrap();
         assert_eq!(store.get_latest(community.id).unwrap(), Some(community));
@@ -366,10 +366,10 @@ mod tests {
 
     #[test]
     fn store_ref_event_log_get_latest_applies_pending_effects() {
-        use crate::event_log::InMemoryEventLog;
-        use gib_fruit_domain::{effect::StateMutation, fruit::STRAWBERRY, member::Member};
+        use crate::event_log_repo::InMemoryEventLogRepo;
+        use gib_fruit_domain::{event_log::StateMutation, fruit::STRAWBERRY, member::Member};
 
-        let event_log = InMemoryEventLog::new();
+        let event_log = InMemoryEventLogRepo::new();
         let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
 
         // create a community with one member
@@ -380,7 +380,7 @@ mod tests {
         store.put(community.clone()).unwrap();
         let id = community.id;
 
-        // record an event + effect via generic helper (forces &InMemoryEventLog monomorphization)
+        // record an event + effect via generic helper (forces &InMemoryEventLogRepo monomorphization)
         let event = append_event_via(&event_log, id, 1);
         append_effect_via(
             &event_log,
@@ -400,10 +400,10 @@ mod tests {
 
     #[test]
     fn store_ref_event_log_query_methods_delegate_through_ref() {
-        use crate::event_log::InMemoryEventLog;
-        use gib_fruit_domain::{event::EventPayload, event_log::EventLogPersistor, record::Record};
+        use crate::event_log_repo::InMemoryEventLogRepo;
+        use gib_fruit_domain::{event_log::EventPayload, event_log_repo::EventLogPersistor};
 
-        let event_log = InMemoryEventLog::new();
+        let event_log = InMemoryEventLogRepo::new();
         let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
         let cid = CommunityId::new();
 
@@ -413,18 +413,15 @@ mod tests {
             .unwrap();
         let effect = event_log.append_effect(event.id, cid, vec![]).unwrap();
 
-        // get_record, get_effect_for_event, get_latest_events all go through &InMemoryEventLog
-        assert_eq!(
-            store.get_record(event.id).unwrap(),
-            Some(Record::from(event))
-        );
+        // get_record, get_effect_for_event, get_latest_events all go through &InMemoryEventLogRepo
+        assert_eq!(store.get_record(event.id).unwrap(), Some(event.into()));
         assert_eq!(
             store.get_effect_for_event(event.id).unwrap(),
             Some(effect.clone())
         );
         assert_eq!(
             store.get_latest_records(cid, 5).unwrap(),
-            vec![Record::from(effect), Record::from(event)]
+            vec![effect.into(), event.into()]
         );
     }
 }

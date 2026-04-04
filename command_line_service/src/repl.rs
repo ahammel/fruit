@@ -2,18 +2,21 @@ use std::io::{self, BufRead, Write};
 
 use gib_fruit_domain::{
     community::{Community, CommunityId},
-    event::EventPayload,
-    event_log::{EventLogPersistor, EventLogProvider},
+    community_store::CommunityStore,
+    event_log::{EventPayload, HasSequenceId},
+    event_log_store::EventLogStore,
     granter::Granter,
     member::Member,
     random_granter::RandomGranter,
-    store::CommunityStore,
 };
-use gib_fruit_in_memory_db::{community_repo::InMemoryCommunityRepo, event_log::InMemoryEventLog};
+use gib_fruit_in_memory_db::{
+    community_repo::InMemoryCommunityRepo, event_log_repo::InMemoryEventLogRepo,
+};
 
 pub fn run() {
-    let event_log = InMemoryEventLog::new();
-    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
+    let event_log_repo = InMemoryEventLogRepo::new();
+    let event_log = EventLogStore::new(&event_log_repo);
+    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log_repo);
     let community_id = {
         let community = Community::new();
         let id = community.id;
@@ -80,7 +83,7 @@ pub fn run() {
     }
 }
 
-type Store<'a> = CommunityStore<InMemoryCommunityRepo, &'a InMemoryEventLog>;
+type Store<'a> = CommunityStore<InMemoryCommunityRepo, &'a InMemoryEventLogRepo>;
 
 fn cmd_add(store: &Store<'_>, id: CommunityId, args: &[&str]) {
     if args.is_empty() {
@@ -118,7 +121,7 @@ fn cmd_remove(store: &Store<'_>, id: CommunityId, args: &[&str]) {
 
 fn cmd_grant(
     store: &Store<'_>,
-    event_log: &InMemoryEventLog,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
     id: CommunityId,
     granter: &mut RandomGranter<rand::rngs::ThreadRng>,
     args: &[&str],
@@ -189,14 +192,14 @@ fn cmd_luck(store: &Store<'_>, id: CommunityId, args: &[&str]) {
     }
 }
 
-fn cmd_log(event_log: &InMemoryEventLog, id: CommunityId, n: usize) {
+fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n: usize) {
     let records = event_log.get_latest_records(id, n).unwrap();
     if records.is_empty() {
         println!("no events recorded");
         return;
     }
     for record in &records {
-        println!("[{}] {:#?}", record.id(), record)
+        println!("[{}] {:#?}", record.sequence_id(), record)
     }
 }
 

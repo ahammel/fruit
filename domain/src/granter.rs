@@ -1,4 +1,4 @@
-use crate::{community::Community, effect::StateMutation};
+use crate::{community::Community, event_log::StateMutation};
 
 /// Port for distributing fruits to all members of a [`Community`].
 pub trait Granter {

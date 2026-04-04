@@ -1,11 +1,11 @@
 use crate::{
     community::{Community, CommunityId},
-    effect::Effect,
+    community_repo::CommunityRepo,
     error::Error,
-    event::SequenceId,
-    event_log::EventLogProvider,
-    record::Record,
-    repo::CommunityRepo,
+    event_log::Effect,
+    event_log::Record,
+    event_log::SequenceId,
+    event_log_repo::EventLogProvider,
 };
 
 /// Reads and writes communities via a [`CommunityRepo`] and [`EventLogProvider`].
@@ -85,10 +85,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        effect::Effect,
+        community_repo::{CommunityPersistor, CommunityProvider},
+        event_log::Effect,
+        event_log::Record,
         id::{IntegerIdentifier, UuidIdentifier},
-        record::Record,
-        repo::{CommunityPersistor, CommunityProvider},
     };
 
     fn err() -> Error {
