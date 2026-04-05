@@ -1,4 +1,4 @@
-.PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage tcr test-coverage-report w watch
+.PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage tcr test-coverage-report tm test-mutation w watch clean
 
 p pretty:
 	cargo fmt --all
@@ -42,10 +42,23 @@ tcr test-coverage-report:
 		--ignore-filename-regex="command_line_service" \
 		--html --open
 
-tm test-mutation:
-	PATH=~/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$$PATH cargo mutants \
+CARGO_MUTANTS_VERSION := $(shell cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['metadata']['tools']['cargo-mutants'])")
+CARGO_MUTANTS_URL := https://github.com/sourcefrog/cargo-mutants/releases/download/v$(CARGO_MUTANTS_VERSION)/cargo-mutants-x86_64-apple-darwin.tar.gz
+
+bin/cargo-mutants:
+	mkdir -p bin
+	curl -fsSL "$(CARGO_MUTANTS_URL)" -o /tmp/cargo-mutants.tar.gz
+	tar -xzf /tmp/cargo-mutants.tar.gz -C bin/ cargo-mutants
+	rm /tmp/cargo-mutants.tar.gz
+
+tm test-mutation: bin/cargo-mutants
+	PATH="$(CURDIR)/bin:$$PATH" cargo mutants \
 		--exclude "command_line_service/**" \
 		-j 4
 
 w watch:
 	fd .rs | entr -s 'clear && make c && make pc && make l && make t && make tc'
+
+clean:
+	cargo clean
+	rm -rf bin/

@@ -1,3 +1,6 @@
 [workspace]
 members = ["domain", "in_memory_db", "command_line_service"]
 resolver = "2"
+
+[workspace.metadata.tools]
+cargo-mutants = "27.0.0"

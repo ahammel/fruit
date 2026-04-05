@@ -1,3 +1,6 @@
 /target
 mutants.out/
 mutants.out.old/
+/bin/
+/.cargo-lock
+/share/
