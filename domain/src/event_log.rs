@@ -4,7 +4,7 @@ use crate::{
     community::{Community, CommunityId, HasCommunityId},
     fruit::Fruit,
     id::IntegerIdentifier,
-    member::MemberId,
+    member::{Member, MemberId},
 };
 
 /// A position in the shared event/effect log sequence.
@@ -78,16 +78,20 @@ impl From<Effect> for Record {
 }
 
 /// The action a player intended to perform.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventPayload {
     /// Distribute `count` fruits to every member of the community.
     Grant { count: usize },
+    /// Add a new member with the given display name to the community.
+    AddMember { display_name: String },
+    /// Remove the member identified by `member_id` from the community.
+    RemoveMember { member_id: MemberId },
 }
 
 /// A recorded player intention. Events do not modify
 /// [`Community`](crate::community::Community) state directly; their consequences are
 /// computed as [`Effect`](crate::effect::Effect)s.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     /// Position in the shared event/effect sequence.
     pub id: SequenceId,
@@ -110,10 +114,14 @@ impl HasCommunityId for Event {
 }
 
 /// An atomic change to [`Community`] state produced as part of an [`Effect`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateMutation {
     /// Add one instance of `fruit` to the bag of the member identified by `member_id`.
     AddFruitToMember { member_id: MemberId, fruit: Fruit },
+    /// Add `member` to the community.
+    AddMember { member: Member },
+    /// Remove the member identified by `member_id` from the community.
+    RemoveMember { member_id: MemberId },
 }
 
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain
@@ -141,6 +149,12 @@ impl Effect {
                     if let Some(member) = community.members.get_mut(member_id) {
                         member.receive(*fruit);
                     }
+                }
+                StateMutation::AddMember { member } => {
+                    community.add_member(member.clone());
+                }
+                StateMutation::RemoveMember { member_id } => {
+                    community.remove_member(*member_id);
                 }
             }
         }
@@ -194,19 +208,19 @@ mod tests {
             mutations: Vec::new(),
         };
         assert_eq!(
-            Into::<Record>::into(event).sequence_id(),
+            Record::from(event.clone()).sequence_id(),
             event.sequence_id()
         );
         assert_eq!(
-            Into::<Record>::into(effect.clone()).sequence_id(),
+            Record::from(effect.clone()).sequence_id(),
             effect.sequence_id()
         );
         assert_eq!(
-            Into::<Record>::into(event).community_id(),
+            Record::from(event.clone()).community_id(),
             event.community_id
         );
         assert_eq!(
-            Into::<Record>::into(effect.clone()).community_id(),
+            Record::from(effect.clone()).community_id(),
             effect.community_id
         );
     }
@@ -265,5 +279,37 @@ mod tests {
         };
         effect.apply(&mut community);
         assert_eq!(community, before);
+    }
+
+    #[test]
+    fn apply_add_member_inserts_member() {
+        let mut community = Community::new();
+        let member = Member::new("Bob");
+        let bob_id = member.id;
+        let effect = Effect {
+            id: SequenceId::from_u64(1),
+            event_id: SequenceId::from_u64(0),
+            community_id: community.id,
+            mutations: vec![StateMutation::AddMember {
+                member: member.clone(),
+            }],
+        };
+        effect.apply(&mut community);
+        assert_eq!(community.members[&bob_id], member);
+    }
+
+    #[test]
+    fn apply_remove_member_removes_member() {
+        let (mut community, alice_id) = community_with_alice();
+        let effect = Effect {
+            id: SequenceId::from_u64(2),
+            event_id: SequenceId::from_u64(1),
+            community_id: community.id,
+            mutations: vec![StateMutation::RemoveMember {
+                member_id: alice_id,
+            }],
+        };
+        effect.apply(&mut community);
+        assert_eq!(community, Community::new().with_id(community.id));
     }
 }

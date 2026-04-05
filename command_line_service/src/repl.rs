@@ -3,7 +3,7 @@ use std::io::{self, BufRead, Write};
 use gib_fruit_domain::{
     community::{Community, CommunityId},
     community_store::CommunityStore,
-    event_log::{EventPayload, HasSequenceId},
+    event_log::{EventPayload, HasSequenceId, StateMutation},
     event_log_store::EventLogStore,
     granter::Granter,
     member::Member,
@@ -64,8 +64,8 @@ pub fn run() {
             show_log_lines = None
         }
         match tokens[0] {
-            "add" => cmd_add(&store, community_id, &tokens[1..]),
-            "remove" => cmd_remove(&store, community_id, &tokens[1..]),
+            "add" => cmd_add(&store, &event_log, community_id, &tokens[1..]),
+            "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
             "grant" => cmd_grant(&store, &event_log, community_id, &mut granter, &tokens[1..]),
             "luck" => cmd_luck(&store, community_id, &tokens[1..]),
             "log" => {
@@ -85,25 +85,46 @@ pub fn run() {
 
 type Store<'a> = CommunityStore<InMemoryCommunityRepo, &'a InMemoryEventLogRepo>;
 
-fn cmd_add(store: &Store<'_>, id: CommunityId, args: &[&str]) {
+fn cmd_add(
+    store: &Store<'_>,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
+    id: CommunityId,
+    args: &[&str],
+) {
     if args.is_empty() {
         println!("usage: add <name>");
         return;
     }
     let name = args.join(" ");
+    let member = Member::new(&name);
+    let event = event_log
+        .append_event(
+            id,
+            EventPayload::AddMember {
+                display_name: name.clone(),
+            },
+        )
+        .unwrap();
+    let mutations = vec![StateMutation::AddMember { member }];
+    let effect = event_log.append_effect(event.id, id, mutations).unwrap();
     let mut community = fetch(store, id);
-    community.add_member(Member::new(&name));
+    effect.apply(&mut community);
     store.replace(community).unwrap();
     println!("added {name}");
 }
 
-fn cmd_remove(store: &Store<'_>, id: CommunityId, args: &[&str]) {
+fn cmd_remove(
+    store: &Store<'_>,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
+    id: CommunityId,
+    args: &[&str],
+) {
     if args.is_empty() {
         println!("usage: remove <name>");
         return;
     }
     let name = args.join(" ");
-    let mut community = fetch(store, id);
+    let community = fetch(store, id);
     match community
         .members
         .values()
@@ -111,7 +132,13 @@ fn cmd_remove(store: &Store<'_>, id: CommunityId, args: &[&str]) {
         .map(|m| m.id)
     {
         Some(member_id) => {
-            community.remove_member(member_id);
+            let event = event_log
+                .append_event(id, EventPayload::RemoveMember { member_id })
+                .unwrap();
+            let mutations = vec![StateMutation::RemoveMember { member_id }];
+            let effect = event_log.append_effect(event.id, id, mutations).unwrap();
+            let mut community = community;
+            effect.apply(&mut community);
             store.replace(community).unwrap();
             println!("removed {name}");
         }

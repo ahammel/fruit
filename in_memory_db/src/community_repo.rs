@@ -414,7 +414,10 @@ mod tests {
         let effect = event_log.append_effect(event.id, cid, vec![]).unwrap();
 
         // get_record, get_effect_for_event, get_latest_events all go through &InMemoryEventLogRepo
-        assert_eq!(store.get_record(event.id).unwrap(), Some(event.into()));
+        assert_eq!(
+            store.get_record(event.id).unwrap(),
+            Some(event.clone().into())
+        );
         assert_eq!(
             store.get_effect_for_event(event.id).unwrap(),
             Some(effect.clone())

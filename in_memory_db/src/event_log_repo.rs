@@ -51,7 +51,7 @@ impl Default for InMemoryEventLogRepo {
 
 impl EventLogProvider for InMemoryEventLogRepo {
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
-        if let Some(event) = self.events.read()?.get(&id).copied() {
+        if let Some(event) = self.events.read()?.get(&id).cloned() {
             return Ok(Some(event.into()));
         }
         let effect = self
@@ -95,7 +95,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
             .filter(|e| e.community_id == community_id)
             .for_each({
                 |e| {
-                    records.push((*e).into());
+                    records.push(e.clone().into());
                 }
             });
 
@@ -133,7 +133,7 @@ impl EventLogPersistor for InMemoryEventLogRepo {
             )
             .into());
         }
-        events.insert(id, event);
+        events.insert(id, event.clone());
         Ok(event)
     }
 

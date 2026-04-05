@@ -179,6 +179,30 @@ _luck = (v * u16::MAX as f64).round() as u16
 
 Round-trips are not exact because not every `f64` in `[0,1]` maps to a distinct `u16`.
 
+### Event log (`event_log.rs`)
+
+```rust
+pub enum EventPayload {
+    Grant { count: usize },
+    AddMember { display_name: String },
+    RemoveMember { member_id: MemberId },
+}
+
+pub enum StateMutation {
+    AddFruitToMember { member_id: MemberId, fruit: Fruit },
+    AddMember { member: Member },
+    RemoveMember { member_id: MemberId },
+}
+```
+
+`EventPayload` and `StateMutation` derive `Debug, Clone, PartialEq, Eq`.
+`Event` and `Effect` derive `Debug, Clone, PartialEq, Eq`.
+
+`Effect::apply` handles all three `StateMutation` variants:
+- `AddFruitToMember` — calls `member.receive(fruit)`; silently skips absent members.
+- `AddMember` — calls `community.add_member(member.clone())`.
+- `RemoveMember` — calls `community.remove_member(member_id)`.
+
 ### Granter port (`granter.rs`)
 
 ```rust
@@ -284,9 +308,9 @@ A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 
 | Command | Description |
 |---------|-------------|
-| `add <name>` | Add a member |
-| `remove <name>` | Remove a member by display name |
-| `grant <count>` | Grant N fruits to every member |
+| `add <name>` | Add a member (recorded as `AddMember` event + effect) |
+| `remove <name>` | Remove a member by display name (recorded as `RemoveMember` event + effect) |
+| `grant <count>` | Grant N fruits to every member (recorded as `Grant` event + effect) |
 | `luck <value>` | Set community luck (float in `[0.0, 1.0]`) |
 | `luck <name> <value>` | Set a member's luck |
 | `help` | Show command list |

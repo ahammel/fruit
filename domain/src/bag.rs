@@ -3,7 +3,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use crate::fruit::Fruit;
 
 /// A multiset of [`Fruit`], tracking how many of each type are held.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Bag {
     counts: HashMap<Fruit, usize>,
 }
