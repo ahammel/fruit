@@ -1,7 +1,7 @@
 [package]
-name = "gib-fruit-in-memory-db"
+name = "fruit-in-memory-db"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gib-fruit-domain = { path = "../domain" }
+fruit-domain = { path = "../domain" }

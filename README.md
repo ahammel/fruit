@@ -1,4 +1,4 @@
-# gib fruit 🍎
+# fruit 🍎
 
 A sharing-economy simulation game, loosely inspired by [HeyTaco](https://heytaco.com/).
 

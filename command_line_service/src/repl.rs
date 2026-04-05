@@ -1,6 +1,6 @@
 use std::io::{self, BufRead, Write};
 
-use gib_fruit_domain::{
+use fruit_domain::{
     community::{Community, CommunityId},
     community_store::CommunityStore,
     event_log::{EventPayload, HasSequenceId, StateMutation},
@@ -9,7 +9,7 @@ use gib_fruit_domain::{
     member::Member,
     random_granter::RandomGranter,
 };
-use gib_fruit_in_memory_db::{
+use fruit_in_memory_db::{
     community_repo::InMemoryCommunityRepo, event_log_repo::InMemoryEventLogRepo,
 };
 

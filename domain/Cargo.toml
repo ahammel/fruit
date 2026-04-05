@@ -1,5 +1,5 @@
 [package]
-name = "gib-fruit-domain"
+name = "fruit-domain"
 version = "0.1.0"
 edition = "2021"
 

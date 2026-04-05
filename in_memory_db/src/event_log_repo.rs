@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use gib_fruit_domain::{
+use fruit_domain::{
     community::CommunityId,
     error::Error,
     event_log::{
@@ -215,7 +215,7 @@ impl EventLogRepo for &InMemoryEventLogRepo {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gib_fruit_domain::{
+    use fruit_domain::{
         community::HasCommunityId, fruit::STRAWBERRY, id::UuidIdentifier, member::MemberId,
     };
 

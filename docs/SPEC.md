@@ -1,8 +1,8 @@
-# gib fruit — Technical Specification
+# fruit — Technical Specification
 
 ## Overview
 
-gib fruit is a sharing-economy simulation game. Players belong to a **community** and
+fruit is a sharing-economy simulation game. Players belong to a **community** and
 hold a **bag** of **fruits**. At each game tick every member receives new fruits drawn
 by weighted-random selection; the weights are shaped by the member's and community's
 **luck** scores.
@@ -20,7 +20,7 @@ The project follows Domain-Driven Design and Hexagonal Architecture, structured 
 Cargo workspace with three crates:
 
 ```
-gib-fruit (workspace)
+fruit (workspace)
 ├── domain/               # Pure domain logic; no I/O
 ├── in_memory_db/         # Implements domain storage ports in RAM
 └── command_line_service/ # Wires everything together; hosts the REPL
