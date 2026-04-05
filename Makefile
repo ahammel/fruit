@@ -1,3 +1,8 @@
+CARGO_MUTANTS_VERSION := $(shell cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['metadata']['tools']['cargo-mutants'])")
+CARGO_MUTANTS_URL := https://github.com/sourcefrog/cargo-mutants/releases/download/v$(CARGO_MUTANTS_VERSION)/cargo-mutants-x86_64-apple-darwin.tar.gz
+
+MUTANTS_FILES = mutants.out mutants.old.out
+
 .PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage tcr test-coverage-report tm test-mutation w watch clean
 
 p pretty:
@@ -42,9 +47,6 @@ tcr test-coverage-report:
 		--ignore-filename-regex="command_line_service" \
 		--html --open
 
-CARGO_MUTANTS_VERSION := $(shell cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['metadata']['tools']['cargo-mutants'])")
-CARGO_MUTANTS_URL := https://github.com/sourcefrog/cargo-mutants/releases/download/v$(CARGO_MUTANTS_VERSION)/cargo-mutants-x86_64-apple-darwin.tar.gz
-
 bin/cargo-mutants:
 	mkdir -p bin
 	curl -fsSL "$(CARGO_MUTANTS_URL)" -o /tmp/cargo-mutants.tar.gz
@@ -61,4 +63,5 @@ w watch:
 
 clean:
 	cargo clean
+	rm -rf $(MUTANTS_FILES)
 	rm -rf bin/
