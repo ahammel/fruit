@@ -2,7 +2,7 @@
 
 ## Overview
 
-fruit is a sharing-economy simulation game. Players belong to a **community** and
+fruit is a gift-economy simulation game. Players belong to a **community** and
 hold a **bag** of **fruits**. At each game tick every member receives new fruits drawn
 by weighted-random selection; the weights are shaped by the member's and community's
 **luck** scores.
