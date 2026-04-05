@@ -42,5 +42,10 @@ tcr test-coverage-report:
 		--ignore-filename-regex="command_line_service" \
 		--html --open
 
+tm test-mutation:
+	PATH=~/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$$PATH cargo mutants \
+		--exclude "command_line_service/**" \
+		-j 4
+
 w watch:
 	fd .rs | entr -s 'clear && make c && make pc && make l && make t && make tc'

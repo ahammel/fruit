@@ -212,6 +212,13 @@ mod tests {
     }
 
     #[test]
+    fn with_version_sets_version() {
+        use crate::id::IntegerIdentifier;
+        let v = SequenceId::from_u64(42);
+        assert_eq!(Community::new().with_version(v).version, v);
+    }
+
+    #[test]
     fn apply_effects_applies_mutations_and_advances_version() {
         use crate::{
             event_log::{Effect, StateMutation},

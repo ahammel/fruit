@@ -324,6 +324,42 @@ mod tests {
     }
 
     #[test]
+    fn get_effects_after_excludes_effect_at_exact_boundary() {
+        // Tests the `>` vs `>=` boundary: an effect whose id == `after` must NOT be returned.
+        let log = log();
+        let cid = community_id();
+        let e1 = log
+            .append_event(cid, EventPayload::Grant { count: 1 })
+            .unwrap();
+        let eff1 = log.append_effect(e1.id, cid, vec![]).unwrap();
+        let e2 = log
+            .append_event(cid, EventPayload::Grant { count: 2 })
+            .unwrap();
+        let eff2 = log.append_effect(e2.id, cid, vec![]).unwrap();
+        assert_eq!(log.get_effects_after(cid, eff1.id).unwrap(), vec![eff2]);
+    }
+
+    #[test]
+    fn get_effects_after_filters_by_community_id() {
+        // Tests `&&` vs `||`: effects from a different community must not appear.
+        let log = log();
+        let cid1 = community_id();
+        let cid2 = community_id();
+        let e1 = log
+            .append_event(cid1, EventPayload::Grant { count: 1 })
+            .unwrap();
+        let eff1 = log.append_effect(e1.id, cid1, vec![]).unwrap();
+        let e2 = log
+            .append_event(cid2, EventPayload::Grant { count: 1 })
+            .unwrap();
+        log.append_effect(e2.id, cid2, vec![]).unwrap();
+        assert_eq!(
+            log.get_effects_after(cid1, SequenceId::zero()).unwrap(),
+            vec![eff1]
+        );
+    }
+
+    #[test]
     fn get_effects_after_sorts_multiple_effects_ascending() {
         let log = log();
         let cid = community_id();

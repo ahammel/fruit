@@ -171,6 +171,16 @@ mod tests {
     };
 
     #[test]
+    fn sequence_id_as_u64_returns_inner_value() {
+        assert_eq!(SequenceId::from_u64(42).as_u64(), 42);
+    }
+
+    #[test]
+    fn sequence_id_display_formats_correctly() {
+        assert_eq!(format!("{}", SequenceId::from_u64(5)), "SequenceId(5)");
+    }
+
+    #[test]
     fn getters_delegate_to_field_values() {
         let event = Event {
             id: SequenceId::from_u64(1),
