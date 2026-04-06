@@ -57,11 +57,11 @@ pub struct Fruit {
     pub name:     &'static str,
     pub emoji:    &'static str,
     pub category: Category,
-    _rarity:      u8,          // private; access via rarity()
+    _rarity:      u16,         // private; access via rarity()
 }
 
 impl Fruit {
-    pub fn rarity(&self) -> f64  // _rarity / u8::MAX, in [0.0, 1.0]
+    pub fn rarity(&self) -> f64  // _rarity / u16::MAX, in [0.0, 1.0]
 }
 ```
 
@@ -69,13 +69,15 @@ impl Fruit {
 all fields (not emoji alone), so two fruits with the same emoji but different rarity are
 distinct.
 
-**Fruit pool** — 26 static constants split across categories:
+**Fruit pool** — 26 static constants split across categories.
+Within-category rarity values are evenly spaced across the `u16` range; old `u8` values
+multiplied by 257 (since `255 × 257 = 65535 = u16::MAX`):
 
-| Category | Count | `_rarity` values (evenly spaced) |
-|----------|-------|----------------------------------|
-| Standard | 9 | 0, 32, 64, 96, 128, 159, 191, 223, 255 |
-| Rare | 9 | 0, 32, 64, 96, 128, 159, 191, 223, 255 |
-| Exotic | 8 | 0, 36, 73, 109, 146, 182, 219, 255 |
+| Category | Count | `_rarity` values (approx, ×257 spacing) |
+|----------|-------|------------------------------------------|
+| Standard | 9 | 0, 8224, 16448, 24672, 32896, 40863, 49087, 57311, 65535 |
+| Rare | 9 | 0, 8224, 16448, 24672, 32896, 40863, 49087, 57311, 65535 |
+| Exotic | 8 | 0, 9252, 18761, 28013, 37522, 46774, 56283, 65535 |
 
 `FRUITS: &[Fruit]` lists all 26 constants ordered by category (Standard → Rare →
 Exotic) then ascending rarity within each category.
@@ -219,9 +221,44 @@ pub trait Granter {
 
 Distributes `count` fruits to **each** member of `community`.
 
+### Fruit weights (`fruit_weights.rs`)
+
+`FruitWeights` is a strategy trait for computing a `WeightedIndex<f64>` over a fruit
+pool given an effective luck value:
+
+```rust
+pub trait FruitWeights {
+    fn fruit_weights(&self, fruits: &[Fruit], luck: f64) -> WeightedIndex<f64>;
+}
+pub struct DefaultFruitWeights;
+impl FruitWeights for DefaultFruitWeights {}  // uses the formula below
+```
+
+**Default weight formula** (where `r = fruit.rarity()` ∈ `[0.0, 1.0]`,
+`l = luck` ∈ `[0.0, 2.0]`, `tier(r) = 1 + 2·r`):
+
+```
+Standard : tier(r) × 10 / (1 + 2·l)
+Rare     : tier(r) × (1 + l/2)
+Exotic   : tier(r) × 0.125 × (1 + l)²
+```
+
+Weights are floored at `f64::EPSILON` so no fruit is ever excluded from sampling.
+
+The `tier(r)` factor gives an exact **3:1 ratio** between the max-rarity (r=1) and
+min-rarity (r=0) fruit within any category at any luck value.
+
+**Approximate category drop-shares:**
+
+| Luck | Standard | Rare | Exotic |
+|------|----------|------|--------|
+| 0.0  | ≈ 90%    | ≈ 9% | ≈ 1%   |
+| 2.0  | ≈ 40%    | ≈ 40%| ≈ 20%  |
+
 ### Random granter (`random_granter.rs`)
 
-`RandomGranter<R: Rng>` implements `Granter` using weighted-random selection.
+`RandomGranter<R: Rng, W: FruitWeights = DefaultFruitWeights>` implements `Granter`
+using weighted-random selection with an injectable weight strategy.
 
 **Effective luck** for a member is the sum of member and community luck (each in
 `[0.0, 1.0]`):
@@ -230,32 +267,12 @@ Distributes `count` fruits to **each** member of `community`.
 luck = member.luck() + community.luck()   // ∈ [0.0, 2.0]
 ```
 
-**Per-fruit weight formula** (where `r = fruit.rarity()` ∈ `[0.0, 1.0]`):
-
-```
-Standard : (0.065 − 0.030·r) / (1 + luck)
-Rare     : (0.050 − 0.030·r) · (1 + luck)
-Exotic   : lerp(0.010 − 0.009·r,  0.050 − 0.040·r,  luck)
-```
-
-Weights are floored at `f64::EPSILON` so no fruit is ever completely excluded.
-
-**Approximate drop probabilities at neutral luck (`luck = 0`)**:
-
-| Category | Most common | Rarest |
-|----------|-------------|--------|
-| Standard | ~1/15 | ~1/22 |
-| Rare | ~1/19 | ~1/48 |
-| Exotic | ~1/96 | ~1/958 |
-
-**At max luck (`luck = 2.0`)** standard drops are heavily suppressed; exotic range
-compresses to roughly 1/21 – 1/104 with the rarest exotics gaining the largest boost.
-
 Construction:
 
 ```rust
-RandomGranter::new(rng)                  // uses full FRUITS pool
-    .with_fruits(&[GRAPES, STRAWBERRY])  // restrict pool (panics if empty)
+RandomGranter::new(rng)                       // full FRUITS pool, DefaultFruitWeights
+    .with_fruits(&[GRAPES, STRAWBERRY])        // restrict pool (panics if empty)
+    .with_weights(custom_weights)              // substitute a FruitWeights strategy
 ```
 
 ### Storage ports (`community_repo.rs`)
@@ -347,9 +364,9 @@ design: shared ID sequence, data model, processing flow, and interleaving behavi
   field-by-field checks.
 - Failure paths (panic messages, error branches) are covered by `#[should_panic]` tests
   and poisoned-lock helper fixtures.
-- Fixed-seed deterministic tests (`StdRng::seed_from_u64(0)`) verify the exact fruit
-  sequence produced by `RandomGranter`; update the expected value if `FRUITS` or the
-  weight formula changes.
+- Statistical distribution tests (`StdRng::seed_from_u64(0)`, 1000 grants) verify that
+  luck shifts drop probabilities in the expected direction; update assertions if the weight
+  formula or crossover points change.
 
 ---
 
@@ -359,7 +376,7 @@ design: shared ID sequence, data model, processing flow, and interleaving behavi
 
 | Score | Storage | Getter return | Setter |
 |-------|---------|---------------|--------|
-| Rarity | `u8` (`_rarity`) | `f64` via `u8::MAX` | struct literal only |
+| Rarity | `u16` (`_rarity`) | `f64` via `u16::MAX` | struct literal only |
 | Luck | `u16` (`_luck`) | `f64` via `u16::MAX` | `with_luck(u16)` / `with_luck_f64(f64)` |
 
 Private fields are prefixed `_` to signal that access should go through the getter.

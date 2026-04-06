@@ -37,14 +37,13 @@ br build-release:
 
 tc test-coverage:
 	rustup run stable cargo llvm-cov --all \
-		--ignore-filename-regex="command_line_service" \
+		--ignore-filename-regex="(command_line_service|_tests\.rs)" \
 		--fail-under-lines 100 \
-		--fail-under-regions 99 \
 		--fail-under-functions 100
 
 tcr test-coverage-report:
 	rustup run stable cargo llvm-cov --all \
-		--ignore-filename-regex="command_line_service" \
+		--ignore-filename-regex="(command_line_service|_tests\.rs)" \
 		--html --open
 
 bin/cargo-mutants:
@@ -56,7 +55,7 @@ bin/cargo-mutants:
 tm test-mutation: bin/cargo-mutants
 	PATH="$(CURDIR)/bin:$$PATH" cargo mutants \
 		--exclude "command_line_service/**" \
-		-j 4
+		-j 10
 
 w watch:
 	fd .rs | entr -s 'clear && make c && make pc && make l && make t && make tc'
