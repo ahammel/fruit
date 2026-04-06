@@ -67,7 +67,7 @@ pub fn run() {
             "add" => cmd_add(&store, &event_log, community_id, &tokens[1..]),
             "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
             "grant" => cmd_grant(&store, &event_log, community_id, &mut granter, &tokens[1..]),
-            "luck" => cmd_luck(&store, community_id, &tokens[1..]),
+            "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]),
             "log" => {
                 match &tokens[1..].first().and_then(|s| s.parse::<usize>().ok()) {
                     Some(n) => show_log_lines = Some(*n),
@@ -108,8 +108,8 @@ fn cmd_add(
     let mutations = vec![StateMutation::AddMember { member }];
     let effect = event_log.append_effect(event.id, id, mutations).unwrap();
     let mut community = fetch(store, id);
-    effect.apply(&mut community);
-    store.replace(community).unwrap();
+    community.apply_effects([effect]);
+    store.put(community).unwrap();
     println!("added {name}");
 }
 
@@ -138,8 +138,8 @@ fn cmd_remove(
             let mutations = vec![StateMutation::RemoveMember { member_id }];
             let effect = event_log.append_effect(event.id, id, mutations).unwrap();
             let mut community = community;
-            effect.apply(&mut community);
-            store.replace(community).unwrap();
+            community.apply_effects([effect]);
+            store.put(community).unwrap();
             println!("removed {name}");
         }
         None => println!("no member named '{name}'"),
@@ -163,22 +163,26 @@ fn cmd_grant(
     let event = event_log
         .append_event(id, EventPayload::Grant { count })
         .unwrap();
-    let community = fetch(store, id);
+    let mut community = fetch(store, id);
     let mutations = granter.grant(&community, count);
     let effect = event_log.append_effect(event.id, id, mutations).unwrap();
-    let mut community = community;
-    effect.apply(&mut community);
-    store.replace(community).unwrap();
+    community.apply_effects([effect]);
+    store.put(community).unwrap();
 }
 
-fn cmd_luck(store: &Store<'_>, id: CommunityId, args: &[&str]) {
+fn cmd_luck(
+    store: &Store<'_>,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
+    id: CommunityId,
+    args: &[&str],
+) {
     if args.is_empty() {
         println!("usage: luck <value>  |  luck <name> <value>");
         return;
     }
 
     let value_str = args.last().unwrap();
-    let value: f64 = match value_str.parse() {
+    let luck_f64: f64 = match value_str.parse() {
         Ok(v) if (0.0..=1.0).contains(&v) => v,
         Ok(_) => {
             println!("luck must be in [0.0, 1.0]");
@@ -189,16 +193,21 @@ fn cmd_luck(store: &Store<'_>, id: CommunityId, args: &[&str]) {
             return;
         }
     };
+    let luck = (luck_f64 * u16::MAX as f64).round() as u16;
 
-    let mut community = fetch(store, id);
+    let community = fetch(store, id);
 
     if args.len() == 1 {
-        // No name — set community luck.
-        let community = community.with_luck_f64(value);
-        store.replace(community).unwrap();
-        println!("community luck set to {value}");
+        let event = event_log
+            .append_event(id, EventPayload::SetCommunityLuck { luck })
+            .unwrap();
+        let mutations = vec![StateMutation::SetCommunityLuck { luck }];
+        let effect = event_log.append_effect(event.id, id, mutations).unwrap();
+        let mut community = community;
+        community.apply_effects([effect]);
+        store.put(community).unwrap();
+        println!("community luck set to {luck_f64}");
     } else {
-        // args[..args.len()-1] is the member name.
         let name = args[..args.len() - 1].join(" ");
         match community
             .members
@@ -207,12 +216,15 @@ fn cmd_luck(store: &Store<'_>, id: CommunityId, args: &[&str]) {
             .map(|m| m.id)
         {
             Some(member_id) => {
-                let member = community.members.remove(&member_id).unwrap();
-                community
-                    .members
-                    .insert(member_id, member.with_luck_f64(value));
-                store.replace(community).unwrap();
-                println!("{name} luck set to {value}");
+                let event = event_log
+                    .append_event(id, EventPayload::SetMemberLuck { member_id, luck })
+                    .unwrap();
+                let mutations = vec![StateMutation::SetMemberLuck { member_id, luck }];
+                let effect = event_log.append_effect(event.id, id, mutations).unwrap();
+                let mut community = community;
+                community.apply_effects([effect]);
+                store.put(community).unwrap();
+                println!("{name} luck set to {luck_f64}");
             }
             None => println!("no member named '{name}'"),
         }

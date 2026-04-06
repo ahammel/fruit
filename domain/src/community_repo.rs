@@ -23,12 +23,8 @@ pub trait CommunityPersistor {
     /// Writes `community` as a new snapshot version.
     ///
     /// Returns `Err` if a snapshot at `community.version` already exists for this
-    /// community. Use [`replace`][CommunityPersistor::replace] to overwrite an existing
-    /// version intentionally.
+    /// community.
     fn put(&self, community: Community) -> Result<Community, Error>;
-
-    /// Overwrites an existing snapshot at `community.version`, or inserts it if absent.
-    fn replace(&self, community: Community) -> Result<Community, Error>;
 }
 
 /// Combined read/write port. Implement this when CQRS separation is not needed.

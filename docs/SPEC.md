@@ -186,22 +186,28 @@ pub enum EventPayload {
     Grant { count: usize },
     AddMember { display_name: String },
     RemoveMember { member_id: MemberId },
+    SetCommunityLuck { luck: u16 },
+    SetMemberLuck { member_id: MemberId, luck: u16 },
 }
 
 pub enum StateMutation {
     AddFruitToMember { member_id: MemberId, fruit: Fruit },
     AddMember { member: Member },
     RemoveMember { member_id: MemberId },
+    SetCommunityLuck { luck: u16 },
+    SetMemberLuck { member_id: MemberId, luck: u16 },
 }
 ```
 
 `EventPayload` and `StateMutation` derive `Debug, Clone, PartialEq, Eq`.
 `Event` and `Effect` derive `Debug, Clone, PartialEq, Eq`.
 
-`Effect::apply` handles all three `StateMutation` variants:
+`Effect::apply` handles all five `StateMutation` variants:
 - `AddFruitToMember` — calls `member.receive(fruit)`; silently skips absent members.
 - `AddMember` — calls `community.add_member(member.clone())`.
 - `RemoveMember` — calls `community.remove_member(member_id)`.
+- `SetCommunityLuck` — sets the community's raw luck value.
+- `SetMemberLuck` — sets a member's raw luck value; silently skips absent members.
 
 ### Granter port (`granter.rs`)
 
@@ -252,11 +258,12 @@ RandomGranter::new(rng)                  // uses full FRUITS pool
     .with_fruits(&[GRAPES, STRAWBERRY])  // restrict pool (panics if empty)
 ```
 
-### Storage ports (`repo.rs`)
+### Storage ports (`community_repo.rs`)
 
 ```rust
 pub trait CommunityProvider {
-    fn get(&self, id: CommunityId) -> Result<Option<Community>, Error>;
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error>;
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error>;
 }
 
 pub trait CommunityPersistor {
@@ -266,17 +273,21 @@ pub trait CommunityPersistor {
 pub trait CommunityRepo: CommunityProvider + CommunityPersistor {}
 ```
 
-Both `get` and `put` take `&self` (not `&mut self`). Implementations manage their own
-interior mutability.
+All methods take `&self` (not `&mut self`). Implementations manage interior mutability
+(e.g. via a connection pool or `RwLock`).
 
-### Store wrapper (`store.rs`)
+Every community write is a new snapshot version. There is no overwrite/upsert operation:
+communities are always advanced by appending a new version via `put`.
+
+### Store wrapper (`community_store.rs`)
 
 ```rust
-pub struct CommunityStore<R: CommunityRepo> { repo: R }
+pub struct CommunityStore<CR: CommunityRepo, ELP: EventLogProvider> { ... }
 ```
 
-Thin wrapper that exposes `get` and `put` without requiring callers to depend on the
-port traits directly.
+Thin wrapper that exposes `get`, `get_latest`, and `put` without requiring callers to
+depend on the port traits directly. `get_latest` folds any unapplied effects from the
+event log into the latest snapshot and persists the result before returning.
 
 ### Error (`error.rs`)
 

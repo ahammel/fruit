@@ -86,6 +86,10 @@ pub enum EventPayload {
     AddMember { display_name: String },
     /// Remove the member identified by `member_id` from the community.
     RemoveMember { member_id: MemberId },
+    /// Set the community's luck to `luck` (raw `u16`).
+    SetCommunityLuck { luck: u16 },
+    /// Set the luck of the member identified by `member_id` to `luck` (raw `u16`).
+    SetMemberLuck { member_id: MemberId, luck: u16 },
 }
 
 /// A recorded player intention. Events do not modify
@@ -122,6 +126,10 @@ pub enum StateMutation {
     AddMember { member: Member },
     /// Remove the member identified by `member_id` from the community.
     RemoveMember { member_id: MemberId },
+    /// Set the community's luck to `luck` (raw `u16`).
+    SetCommunityLuck { luck: u16 },
+    /// Set the luck of the member identified by `member_id` to `luck` (raw `u16`).
+    SetMemberLuck { member_id: MemberId, luck: u16 },
 }
 
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain
@@ -155,6 +163,16 @@ impl Effect {
                 }
                 StateMutation::RemoveMember { member_id } => {
                     community.remove_member(*member_id);
+                }
+                StateMutation::SetCommunityLuck { luck } => {
+                    *community = community.clone().with_luck(*luck);
+                }
+                StateMutation::SetMemberLuck { member_id, luck } => {
+                    if let Some(member) = community.members.remove(member_id) {
+                        community
+                            .members
+                            .insert(*member_id, member.with_luck(*luck));
+                    }
                 }
             }
         }

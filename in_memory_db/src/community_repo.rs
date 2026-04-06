@@ -77,15 +77,6 @@ impl CommunityPersistor for InMemoryCommunityRepo {
         versions.insert(community.version, community.clone());
         Ok(community)
     }
-
-    fn replace(&self, community: Community) -> Result<Community, Error> {
-        self.store
-            .write()?
-            .entry(community.id)
-            .or_default()
-            .insert(community.version, community.clone());
-        Ok(community)
-    }
 }
 
 impl CommunityRepo for InMemoryCommunityRepo {}
@@ -179,14 +170,6 @@ mod tests {
         assert!(repo.put(Community::new()).is_err());
     }
 
-    #[test]
-    fn replace_returns_err_when_lock_is_poisoned() {
-        let repo = InMemoryCommunityRepo {
-            store: poisoned_store(),
-        };
-        assert!(repo.replace(Community::new()).is_err());
-    }
-
     // --- repo: put ---
 
     #[test]
@@ -229,6 +212,8 @@ mod tests {
         assert!(repo.put(community).is_err());
     }
 
+    // --- repo: get_latest ---
+
     #[test]
     fn repo_get_latest_returns_highest_version() {
         let repo = repo();
@@ -241,30 +226,6 @@ mod tests {
         repo.put(newer.clone()).unwrap();
         assert_eq!(repo.get_latest(id).unwrap(), Some(newer));
         assert!(repo.get(id, v0).unwrap().is_some());
-    }
-
-    // --- repo: replace ---
-
-    #[test]
-    fn repo_replace_inserts_when_absent() {
-        let repo = repo();
-        let community = Community::new();
-        let id = community.id;
-        let version = community.version;
-        repo.replace(community.clone()).unwrap();
-        assert_eq!(repo.get(id, version).unwrap(), Some(community));
-    }
-
-    #[test]
-    fn repo_replace_overwrites_existing_version() {
-        let repo = repo();
-        let community = Community::new();
-        let id = community.id;
-        let version = community.version;
-        repo.put(community).unwrap();
-        let updated = Community::new().with_id(id).with_luck(500);
-        repo.replace(updated.clone()).unwrap();
-        assert_eq!(repo.get(id, version).unwrap(), Some(updated));
     }
 
     // --- store ---
@@ -299,18 +260,6 @@ mod tests {
         let id = community.id;
         store.put(community.clone()).unwrap();
         assert_eq!(store.get_latest(id).unwrap(), Some(community));
-    }
-
-    #[test]
-    fn store_replace_overwrites_existing_version() {
-        let store = store();
-        let community = Community::new();
-        let id = community.id;
-        let version = community.version;
-        store.put(community).unwrap();
-        let updated = Community::new().with_id(id).with_luck(500);
-        store.replace(updated.clone()).unwrap();
-        assert_eq!(store.get(id, version).unwrap(), Some(updated));
     }
 
     #[test]

@@ -58,11 +58,6 @@ impl<CR: CommunityRepo, ELP: EventLogProvider> CommunityStore<CR, ELP> {
         self.community_repo.put(community)
     }
 
-    /// Overwrites an existing snapshot, or inserts it if absent.
-    pub fn replace(&self, community: Community) -> Result<Community, Error> {
-        self.community_repo.replace(community)
-    }
-
     /// Returns the log entry with the given sequence ID, or `None` if not found.
     pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
         self.event_log_provider.get_record(id)
@@ -112,9 +107,6 @@ mod tests {
         fn put(&self, _: Community) -> Result<Community, Error> {
             Err(err())
         }
-        fn replace(&self, _: Community) -> Result<Community, Error> {
-            Err(err())
-        }
     }
 
     impl CommunityRepo for ErrorRepo {}
@@ -136,9 +128,6 @@ mod tests {
 
     impl CommunityPersistor for GetOkPutErrorRepo {
         fn put(&self, _: Community) -> Result<Community, Error> {
-            Err(err())
-        }
-        fn replace(&self, _: Community) -> Result<Community, Error> {
             Err(err())
         }
     }
@@ -206,12 +195,6 @@ mod tests {
     }
 
     #[test]
-    fn replace_propagates_repo_error() {
-        let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-        assert!(store.replace(Community::new()).is_err());
-    }
-
-    #[test]
     fn get_latest_propagates_repo_error() {
         let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
         assert!(store.get_latest(CommunityId::new()).is_err());
@@ -249,14 +232,6 @@ mod tests {
         let id = community.id;
         let store = CommunityStore::new(GetOkPutErrorRepo { community }, ErrorEventLog);
         assert!(store.get(id, SequenceId::zero()).unwrap().is_none());
-    }
-
-    #[test]
-    fn replace_with_get_ok_put_error_repo_returns_err() {
-        let community = Community::new();
-        let id = community.id;
-        let store = CommunityStore::new(GetOkPutErrorRepo { community }, ErrorEventLog);
-        assert!(store.replace(Community::new().with_id(id)).is_err());
     }
 
     #[test]
