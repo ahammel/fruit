@@ -58,7 +58,7 @@ tm test-mutation: bin/cargo-mutants
 		-j 10
 
 w watch:
-	fd .rs | entr -s 'clear && make c && make pc && make l && make t && make tc'
+	fd .rs | entr -s 'clear && make c && make l && make tc && make pc'
 
 clean:
 	cargo clean
