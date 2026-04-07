@@ -321,6 +321,20 @@ fn events_and_effects_share_sequence() {
     assert_eq!(effect.id, SequenceId::from_u64(2));
 }
 
+// --- get_latest_records includes effects ---
+
+#[test]
+fn get_latest_records_includes_effects() {
+    let log = log();
+    let cid = community_id();
+    let event = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let effect = log.append_effect(event.id, cid, vec![]).unwrap();
+    let records = log.get_latest_records(cid, 10).unwrap();
+    assert_eq!(records, vec![effect.into(), event.into()]);
+}
+
 // --- get_latest_events ---
 
 #[test]
@@ -369,38 +383,89 @@ fn get_latest_events_returns_empty_when_none_exist() {
 }
 
 // --- &InMemoryEventLogRepo delegation ---
+//
+// These helpers force dispatch through the `impl EventLogProvider/Persistor for &InMemoryEventLogRepo`
+// impls. When T is inferred as `&InMemoryEventLogRepo`, Rust monomorphizes through the reference impl
+// rather than the owned one.
+
+fn via_provider_get_record<T: EventLogProvider>(
+    p: T,
+    id: SequenceId,
+) -> Result<Option<Record>, Error> {
+    p.get_record(id)
+}
+
+fn via_provider_get_effect_for_event<T: EventLogProvider>(
+    p: T,
+    id: SequenceId,
+) -> Result<Option<Effect>, Error> {
+    p.get_effect_for_event(id)
+}
+
+fn via_provider_get_effects_after<T: EventLogProvider>(
+    p: T,
+    cid: CommunityId,
+    after: SequenceId,
+) -> Result<Vec<Effect>, Error> {
+    p.get_effects_after(cid, after)
+}
+
+fn via_provider_get_latest_records<T: EventLogProvider>(
+    p: T,
+    cid: CommunityId,
+    n: usize,
+) -> Result<Vec<Record>, Error> {
+    p.get_latest_records(cid, n)
+}
+
+fn via_persistor_append_event<T: EventLogPersistor>(
+    p: T,
+    cid: CommunityId,
+    payload: EventPayload,
+) -> Result<Event, Error> {
+    p.append_event(cid, payload)
+}
+
+fn via_persistor_append_effect<T: EventLogPersistor>(
+    p: T,
+    event_id: SequenceId,
+    cid: CommunityId,
+    mutations: Vec<StateMutation>,
+) -> Result<Effect, Error> {
+    p.append_effect(event_id, cid, mutations)
+}
 
 #[test]
 fn ref_delegates_get_record() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    assert_eq!(log.get_record(event.id).unwrap(), Some(event.into()));
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    assert_eq!(
+        via_provider_get_record(&log, event.id).unwrap(),
+        Some(event.into())
+    );
 }
 
 #[test]
 fn ref_delegates_get_effect_for_event() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    let effect = log.append_effect(event.id, cid, vec![]).unwrap();
-    assert_eq!(log.get_effect_for_event(event.id).unwrap(), Some(effect));
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    let effect = via_persistor_append_effect(&log, event.id, cid, vec![]).unwrap();
+    assert_eq!(
+        via_provider_get_effect_for_event(&log, event.id).unwrap(),
+        Some(effect)
+    );
 }
 
 #[test]
 fn ref_delegates_get_effects_after() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    let effect = log.append_effect(event.id, cid, vec![]).unwrap();
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    let effect = via_persistor_append_effect(&log, event.id, cid, vec![]).unwrap();
     assert_eq!(
-        log.get_effects_after(cid, SequenceId::zero()).unwrap(),
+        via_provider_get_effects_after(&log, cid, SequenceId::zero()).unwrap(),
         vec![effect]
     );
 }
@@ -409,29 +474,32 @@ fn ref_delegates_get_effects_after() {
 fn ref_delegates_get_latest_events() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    assert_eq!(log.get_latest_records(cid, 5).unwrap(), vec![event.into()]);
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    assert_eq!(
+        via_provider_get_latest_records(&log, cid, 5).unwrap(),
+        vec![event.into()]
+    );
 }
 
 #[test]
 fn ref_delegates_append_event() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    assert_eq!(log.get_record(event.id).unwrap(), Some(event.into()));
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    assert_eq!(
+        via_provider_get_record(&log, event.id).unwrap(),
+        Some(event.into())
+    );
 }
 
 #[test]
 fn ref_delegates_append_effect() {
     let log = log();
     let cid = community_id();
-    let event = log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    let effect = log.append_effect(event.id, cid, vec![]).unwrap();
-    assert_eq!(log.get_effect_for_event(event.id).unwrap(), Some(effect));
+    let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
+    let effect = via_persistor_append_effect(&log, event.id, cid, vec![]).unwrap();
+    assert_eq!(
+        via_provider_get_effect_for_event(&log, event.id).unwrap(),
+        Some(effect)
+    );
 }

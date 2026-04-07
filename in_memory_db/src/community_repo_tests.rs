@@ -1,6 +1,9 @@
 use super::*;
 use crate::event_log_repo::InMemoryEventLogRepo;
-use fruit_domain::{community_store::CommunityStore, id::UuidIdentifier};
+use fruit_domain::{
+    community_store::CommunityStore, event_log::EventPayload, event_log_repo::EventLogPersistor,
+    id::UuidIdentifier,
+};
 
 fn repo() -> InMemoryCommunityRepo {
     InMemoryCommunityRepo::new()
@@ -8,30 +11,6 @@ fn repo() -> InMemoryCommunityRepo {
 
 fn store() -> CommunityStore<InMemoryCommunityRepo, InMemoryEventLogRepo> {
     CommunityStore::new(InMemoryCommunityRepo::new(), InMemoryEventLogRepo::new())
-}
-
-/// Forces monomorphization of `EventLogPersistor::append_event` for type `P`,
-/// preventing LLVM from inlining delegation wrappers (e.g. `&InMemoryEventLogRepo`).
-fn append_event_via<P: fruit_domain::event_log_repo::EventLogPersistor>(
-    p: P,
-    community_id: CommunityId,
-    count: usize,
-) -> fruit_domain::event_log::Event {
-    p.append_event(
-        community_id,
-        fruit_domain::event_log::EventPayload::Grant { count },
-    )
-    .unwrap()
-}
-
-/// Forces monomorphization of `EventLogPersistor::append_effect` for type `P`.
-fn append_effect_via<P: fruit_domain::event_log_repo::EventLogPersistor>(
-    p: P,
-    event_id: fruit_domain::event_log::SequenceId,
-    community_id: CommunityId,
-    mutations: Vec<fruit_domain::event_log::StateMutation>,
-) -> fruit_domain::event_log::Effect {
-    p.append_effect(event_id, community_id, mutations).unwrap()
 }
 
 // --- helpers ---
@@ -159,25 +138,6 @@ fn store_get_latest_returns_none_for_unknown_id() {
 }
 
 #[test]
-fn store_put_and_get_round_trips_community() {
-    let store = store();
-    let community = Community::new();
-    let id = community.id;
-    let version = community.version;
-    store.put(community.clone()).unwrap();
-    assert_eq!(store.get(id, version).unwrap(), Some(community));
-}
-
-#[test]
-fn store_put_and_get_latest_returns_community() {
-    let store = store();
-    let community = Community::new();
-    let id = community.id;
-    store.put(community.clone()).unwrap();
-    assert_eq!(store.get_latest(id).unwrap(), Some(community));
-}
-
-#[test]
 fn store_get_latest_applies_pending_effects_with_owned_event_log() {
     use crate::event_log_repo::InMemoryEventLogRepo;
     use fruit_domain::{
@@ -217,77 +177,62 @@ fn store_get_latest_applies_pending_effects_with_owned_event_log() {
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
 }
 
-// --- store via &InMemoryEventLogRepo: covers delegation impls and store.init / get_latest with effects ---
+// --- store: init / get_latest with multiple effects ---
 
 #[test]
-fn store_ref_event_log_init_creates_persisted_community() {
-    use crate::event_log_repo::InMemoryEventLogRepo;
-    let event_log = InMemoryEventLogRepo::new();
-    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
+fn store_init_creates_persisted_community() {
+    let store = store();
     let community = store.init().unwrap();
     assert_eq!(store.get_latest(community.id).unwrap(), Some(community));
 }
 
 #[test]
-fn store_ref_event_log_get_latest_applies_pending_effects() {
-    use crate::event_log_repo::InMemoryEventLogRepo;
+fn store_get_latest_applies_multiple_pending_effects() {
     use fruit_domain::{event_log::StateMutation, fruit::STRAWBERRY, member::Member};
 
-    let event_log = InMemoryEventLogRepo::new();
-    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
-
-    // create a community with one member
-    let mut community = Community::new();
-    let member = Member::new("Alice");
-    let alice_id = member.id;
-    community.add_member(member);
-    store.put(community.clone()).unwrap();
+    // Start with a bare community (no members yet).
+    let community = Community::new();
     let id = community.id;
 
-    // record an event + effect via generic helper (forces &InMemoryEventLogRepo monomorphization)
-    let event = append_event_via(&event_log, id, 1);
-    append_effect_via(
-        &event_log,
-        event.id,
-        id,
-        vec![StateMutation::AddFruitToMember {
-            member_id: alice_id,
-            fruit: STRAWBERRY,
-        }],
-    );
+    // Pre-populate the event log: AddMember then Grant effects.
+    let event_log = InMemoryEventLogRepo::new();
+    let alice = Member::new("Alice");
+    let alice_id = alice.id;
+    let add_member_event = event_log
+        .append_event(
+            id,
+            EventPayload::AddMember {
+                display_name: "Alice".to_string(),
+            },
+        )
+        .unwrap();
+    event_log
+        .append_effect(
+            add_member_event.id,
+            id,
+            vec![StateMutation::AddMember { member: alice }],
+        )
+        .unwrap();
+    let grant_event = event_log
+        .append_event(id, EventPayload::Grant { count: 1 })
+        .unwrap();
+    event_log
+        .append_effect(
+            grant_event.id,
+            id,
+            vec![StateMutation::AddFruitToMember {
+                member_id: alice_id,
+                fruit: STRAWBERRY,
+            }],
+        )
+        .unwrap();
 
-    // get_latest should apply the pending effect; version advances to the effect's sequence ID
+    // Hand ownership of the log to the store and apply effects via get_latest.
+    let repo = InMemoryCommunityRepo::new();
+    repo.put(community).unwrap();
+    let store = CommunityStore::new(repo, event_log);
+
     let latest = store.get_latest(id).unwrap().unwrap();
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
-    assert!(latest.version > event.id); // effect id > event id (shared sequence)
-}
-
-#[test]
-fn store_ref_event_log_query_methods_delegate_through_ref() {
-    use crate::event_log_repo::InMemoryEventLogRepo;
-    use fruit_domain::{event_log::EventPayload, event_log_repo::EventLogPersistor};
-
-    let event_log = InMemoryEventLogRepo::new();
-    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log);
-    let cid = CommunityId::new();
-
-    // append via direct log so sequence starts at 1
-    let event = event_log
-        .append_event(cid, EventPayload::Grant { count: 1 })
-        .unwrap();
-    let effect = event_log.append_effect(event.id, cid, vec![]).unwrap();
-
-    // get_record, get_effect_for_event, get_latest_events all go through &InMemoryEventLogRepo
-    assert_eq!(
-        store.get_record(event.id).unwrap(),
-        Some(event.clone().into())
-    );
-    assert_eq!(
-        store.get_effect_for_event(event.id).unwrap(),
-        Some(effect.clone())
-    );
-    assert_eq!(
-        store.get_latest_records(cid, 5).unwrap(),
-        vec![effect.into(), event.into()]
-    );
+    assert!(latest.version > grant_event.id); // effect id > event id (shared sequence)
 }

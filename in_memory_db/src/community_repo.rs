@@ -20,6 +20,7 @@ use fruit_domain::{
 /// without `&mut self`.
 ///
 /// [`put`]: CommunityPersistor::put
+#[derive(Debug)]
 pub struct InMemoryCommunityRepo {
     store: RwLock<HashMap<CommunityId, BTreeMap<SequenceId, Community>>>,
 }

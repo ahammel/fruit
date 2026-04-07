@@ -75,6 +75,46 @@ impl EventLogProvider for ErrorEventLog {
     }
 }
 
+// --- mock repo that returns None for get_latest ---
+
+struct NoneLatestRepo;
+
+impl CommunityProvider for NoneLatestRepo {
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+        Ok(None)
+    }
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+        Ok(None)
+    }
+}
+
+impl CommunityPersistor for NoneLatestRepo {
+    fn put(&self, c: Community) -> Result<Community, Error> {
+        Ok(c)
+    }
+}
+
+impl CommunityRepo for NoneLatestRepo {}
+
+// --- mock event log that returns empty effects ---
+
+struct EmptyEffectsEventLog;
+
+impl EventLogProvider for EmptyEffectsEventLog {
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+        Ok(None)
+    }
+    fn get_effects_after(&self, _: CommunityId, _: SequenceId) -> Result<Vec<Effect>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+}
+
 // --- mock event log that returns one effect ---
 
 struct OneEffectEventLog {
@@ -108,12 +148,6 @@ fn init_propagates_put_error() {
 fn get_propagates_repo_error() {
     let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
     assert!(store.get(CommunityId::new(), SequenceId::zero()).is_err());
-}
-
-#[test]
-fn put_propagates_repo_error() {
-    let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.put(Community::new()).is_err());
 }
 
 #[test]
@@ -157,64 +191,23 @@ fn get_with_get_ok_put_error_repo_returns_none() {
 }
 
 #[test]
-fn get_record_propagates_error() {
-    let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.get_record(SequenceId::zero()).is_err());
+fn get_latest_returns_none_when_community_not_found() {
+    // Covers the `else { return Ok(None) }` branch for the NoneLatestRepo monomorphization.
+    let store = CommunityStore::new(NoneLatestRepo, EmptyEffectsEventLog);
+    assert!(store.get_latest(CommunityId::new()).unwrap().is_none());
 }
 
 #[test]
-fn get_effect_for_event_propagates_error() {
-    let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.get_effect_for_event(SequenceId::zero()).is_err());
-}
-
-#[test]
-fn get_latest_events_propagates_error() {
-    let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.get_latest_records(CommunityId::new(), 5).is_err());
-}
-
-#[test]
-fn get_record_returns_none_via_one_effect_log() {
-    use crate::id::IntegerIdentifier;
-    let effect = Effect {
-        id: SequenceId::from_u64(2),
-        event_id: SequenceId::from_u64(1),
-        community_id: CommunityId::new(),
-        mutations: vec![],
-    };
-    let store = CommunityStore::new(ErrorRepo, OneEffectEventLog { effect });
-    assert!(store.get_record(SequenceId::zero()).unwrap().is_none());
-}
-
-#[test]
-fn get_effect_for_event_returns_none_via_one_effect_log() {
-    use crate::id::IntegerIdentifier;
-    let effect = Effect {
-        id: SequenceId::from_u64(2),
-        event_id: SequenceId::from_u64(1),
-        community_id: CommunityId::new(),
-        mutations: vec![],
-    };
-    let store = CommunityStore::new(ErrorRepo, OneEffectEventLog { effect });
-    assert!(store
-        .get_effect_for_event(SequenceId::zero())
-        .unwrap()
-        .is_none());
-}
-
-#[test]
-fn get_latest_events_returns_empty_via_one_effect_log() {
-    use crate::id::IntegerIdentifier;
-    let effect = Effect {
-        id: SequenceId::from_u64(2),
-        event_id: SequenceId::from_u64(1),
-        community_id: CommunityId::new(),
-        mutations: vec![],
-    };
-    let store = CommunityStore::new(ErrorRepo, OneEffectEventLog { effect });
-    assert!(store
-        .get_latest_records(CommunityId::new(), 5)
-        .unwrap()
-        .is_empty());
+fn get_latest_returns_community_when_no_pending_effects() {
+    // Covers the `if unapplied.is_empty() { return Ok(Some(community)) }` branch
+    // for the GetOkPutErrorRepo + EmptyEffectsEventLog monomorphization.
+    let community = Community::new();
+    let id = community.id;
+    let store = CommunityStore::new(
+        GetOkPutErrorRepo {
+            community: community.clone(),
+        },
+        EmptyEffectsEventLog,
+    );
+    assert_eq!(store.get_latest(id).unwrap(), Some(community));
 }

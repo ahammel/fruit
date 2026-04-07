@@ -22,6 +22,7 @@ use fruit_domain::{
 /// Events and effects share a single auto-incrementing sequence, giving a total
 /// ordering across all entries. Both collections are protected by separate
 /// [`RwLock`]s to allow concurrent reads.
+#[derive(Debug)]
 pub struct InMemoryEventLogRepo {
     sequence: AtomicU64,
     events: RwLock<HashMap<SequenceId, Event>>,

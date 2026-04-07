@@ -2,8 +2,6 @@ use crate::{
     community::{Community, CommunityId},
     community_repo::CommunityRepo,
     error::Error,
-    event_log::Effect,
-    event_log::Record,
     event_log::SequenceId,
     event_log_repo::EventLogProvider,
 };
@@ -25,7 +23,7 @@ impl<CR: CommunityRepo, ELP: EventLogProvider> CommunityStore<CR, ELP> {
 
     /// Creates and persists a new community at version zero.
     pub fn init(&self) -> Result<Community, Error> {
-        self.put(Community::new())
+        self.community_repo.put(Community::new())
     }
 
     /// Returns the community snapshot at the given `version`, or `None` if not found.
@@ -49,28 +47,8 @@ impl<CR: CommunityRepo, ELP: EventLogProvider> CommunityStore<CR, ELP> {
             return Ok(Some(community));
         }
         community.apply_effects(unapplied);
-        let saved = self.put(community)?;
+        let saved = self.community_repo.put(community)?;
         Ok(Some(saved))
-    }
-
-    /// Writes `community` as a new snapshot. Returns `Err` if that version already exists.
-    pub fn put(&self, community: Community) -> Result<Community, Error> {
-        self.community_repo.put(community)
-    }
-
-    /// Returns the log entry with the given sequence ID, or `None` if not found.
-    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
-        self.event_log_provider.get_record(id)
-    }
-
-    /// Returns the effect whose `event_id` matches `event_id`, or `None` if not yet processed.
-    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
-        self.event_log_provider.get_effect_for_event(event_id)
-    }
-
-    /// Returns the `n` most recent events for `community_id`, sorted by sequence ID descending.
-    pub fn get_latest_records(&self, id: CommunityId, n: usize) -> Result<Vec<Record>, Error> {
-        self.event_log_provider.get_latest_records(id, n)
     }
 }
 

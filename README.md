@@ -1,6 +1,6 @@
 # fruit 🍎
 
-A gift-economy simulation game, loosely inspired by [HeyTaco](https://heytaco.com/).
+A sharing-economy simulation game, loosely inspired by [HeyTaco](https://heytaco.com/).
 
 ## Concept
 
