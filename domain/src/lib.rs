@@ -1,3 +1,10 @@
+//! Domain model for the fruit gift-economy simulation game.
+//!
+//! This crate contains pure business logic with no I/O or side effects.
+//! Storage ports ([`community_repo`], [`event_log_repo`]) are defined here as
+//! traits; concrete implementations live in sibling crates such as
+//! `fruit_in_memory_db`.
+
 pub mod bag;
 pub mod community;
 pub mod community_repo;

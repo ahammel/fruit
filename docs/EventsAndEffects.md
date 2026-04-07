@@ -74,17 +74,21 @@ A Community Snapshot is a cached copy of the Community state after a given Effec
 applied. Snapshots are a **performance optimisation** — without them, deriving current
 state would require replaying the entire Effect log from the beginning each time.
 
+In the implementation, the `Community` struct itself serves as the snapshot. It carries a
+`version: SequenceId` field that records the sequence ID of the last Effect that was
+folded into this instance:
+
 ```
-CommunitySnapshot {
-    community_id: CommunityId
-    effect_id:    u64          // the Effect after which this snapshot was taken
-    community:    Community
+Community {
+    id:      CommunityId
+    version: SequenceId   // the Effect after which this snapshot was taken; zero = baseline
+    ...                   // members, luck, etc.
 }
 ```
 
-The baseline snapshot is **version 0**: an empty Community created when the Community is
-first initialised. Version 0 is defined in the domain code and requires no Event or Effect
-to produce.
+The baseline snapshot is **version 0** (`SequenceId::zero()`): an empty Community created
+when the Community is first initialised. Version 0 is defined in the domain code and
+requires no Event or Effect to produce.
 
 Snapshots do not need to exist for every Effect. A snapshot for the most recently
 processed Effect is sufficient for production use. Older snapshots can be cleaned up by a

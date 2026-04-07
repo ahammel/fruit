@@ -1,6 +1,6 @@
 # fruit 🍎
 
-A sharing-economy simulation game, loosely inspired by [HeyTaco](https://heytaco.com/).
+A sharing economy simulation game, loosely inspired by [HeyTaco](https://heytaco.com/).
 
 ## Concept
 
@@ -126,6 +126,7 @@ Designed to run inside chat platforms:
 > luck 0.3            # set community luck (0.0–1.0)
 > luck Alice 0.8      # set member luck
 > grant 5             # grant 5 fruits to every member
+> log 10              # show the 10 most recent log records
 > remove Bob
 > quit
 ```

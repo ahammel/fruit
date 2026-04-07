@@ -34,7 +34,9 @@ impl fmt::Display for SequenceId {
     }
 }
 
+/// Marker trait for types that occupy a position in the shared event/effect log sequence.
 pub trait HasSequenceId {
+    /// Returns the position of this entry in the shared event/effect log sequence.
     fn sequence_id(&self) -> SequenceId;
 }
 

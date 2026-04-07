@@ -22,7 +22,9 @@ impl UuidIdentifier for CommunityId {
     }
 }
 
+/// Marker trait for types that belong to a [`Community`].
 pub trait HasCommunityId {
+    /// Returns the [`CommunityId`] of the community this value belongs to.
     fn community_id(&self) -> CommunityId;
 }
 

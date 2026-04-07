@@ -2,7 +2,7 @@
 
 ## Overview
 
-fruit is a gift-economy simulation game. Players belong to a **community** and
+fruit is a sharing economy simulation game. Players belong to a **community** and
 hold a **bag** of **fruits**. At each game tick every member receives new fruits drawn
 by weighted-random selection; the weights are shaped by the member's and community's
 **luck** scores.
@@ -42,6 +42,12 @@ crates. `in_memory_db` and `command_line_service` depend on `domain`; only
 pub trait UuidIdentifier: Debug + Clone + Copy + PartialEq + Eq + Hash {
     fn new() -> Self;          // generates a random UUID v4
     fn as_uuid(&self) -> Uuid;
+}
+
+pub trait IntegerIdentifier: Debug + Clone + Copy + PartialEq + Eq + Hash + Ord + PartialOrd {
+    fn zero() -> Self;         // sentinel value (not a valid sequence position)
+    fn from_u64(id: u64) -> Self;
+    fn as_u64(&self) -> u64;
 }
 ```
 
@@ -139,6 +145,7 @@ pub struct Community {
     pub id:      CommunityId,
     _luck:       u16,                      // private
     pub members: HashMap<MemberId, Member>,
+    pub version: SequenceId,               // last applied effect; zero = no effects applied
 }
 ```
 
@@ -146,10 +153,11 @@ Builders:
 
 | Method | Description |
 |--------|-------------|
-| `new()` | Random ID, neutral luck, no members |
+| `new()` | Random ID, neutral luck, no members, version zero |
 | `with_id(CommunityId)` | Override ID |
 | `with_luck(u16)` | Set raw luck |
 | `with_luck_f64(f64)` | Set luck from normalised float; round-trip not guaranteed |
+| `with_version(SequenceId)` | Override version; useful when reconstituting from storage |
 
 Getters:
 
@@ -163,6 +171,26 @@ Mutation:
 |--------|---------|-------------|
 | `add_member(Member) -> bool` | `true` if inserted, `false` if ID already present |
 | `remove_member(MemberId) -> Option<Member>` | Removed member, or `None` |
+| `apply_effects(impl IntoIterator<Item = Effect>)` | Applies effects in order; advances `version` to the last effect's ID |
+
+The `version` field doubles as the community snapshot marker: it records the sequence
+ID of the last `Effect` that was folded into this instance. A `version` of
+`SequenceId::zero()` means the community reflects only its initial state; no effects
+have been applied.
+
+### Shared identity traits (`community.rs`, `event_log.rs`)
+
+```rust
+pub trait HasCommunityId {
+    fn community_id(&self) -> CommunityId;
+}
+
+pub trait HasSequenceId {
+    fn sequence_id(&self) -> SequenceId;
+}
+```
+
+`Event`, `Effect`, and `Record` all implement both traits.
 
 ### Luck normalisation
 
@@ -184,12 +212,25 @@ Round-trips are not exact because not every `f64` in `[0,1]` maps to a distinct 
 ### Event log (`event_log.rs`)
 
 ```rust
+pub struct SequenceId(u64);   // implements IntegerIdentifier; zero() is a sentinel
+
+pub enum Record {             // a single log entry
+    Event(Event),
+    Effect(Effect),
+}
+
 pub enum EventPayload {
     Grant { count: usize },
     AddMember { display_name: String },
     RemoveMember { member_id: MemberId },
     SetCommunityLuck { luck: u16 },
     SetMemberLuck { member_id: MemberId, luck: u16 },
+}
+
+pub struct Event {
+    pub id:           SequenceId,
+    pub community_id: CommunityId,
+    pub payload:      EventPayload,
 }
 
 pub enum StateMutation {
@@ -199,10 +240,17 @@ pub enum StateMutation {
     SetCommunityLuck { luck: u16 },
     SetMemberLuck { member_id: MemberId, luck: u16 },
 }
+
+pub struct Effect {
+    pub id:           SequenceId,
+    pub event_id:     SequenceId,
+    pub community_id: CommunityId,
+    pub mutations:    Vec<StateMutation>,
+}
 ```
 
 `EventPayload` and `StateMutation` derive `Debug, Clone, PartialEq, Eq`.
-`Event` and `Effect` derive `Debug, Clone, PartialEq, Eq`.
+`Event`, `Effect`, and `Record` derive `Debug, Clone, PartialEq, Eq`.
 
 `Effect::apply` handles all five `StateMutation` variants:
 - `AddFruitToMember` — calls `member.receive(fruit)`; silently skips absent members.
@@ -215,11 +263,13 @@ pub enum StateMutation {
 
 ```rust
 pub trait Granter {
-    fn grant(&mut self, community: &mut Community, count: usize);
+    fn grant(&mut self, community: &Community, count: usize) -> Vec<StateMutation>;
 }
 ```
 
-Distributes `count` fruits to **each** member of `community`.
+Computes the `StateMutation`s that would result from distributing `count` fruits to
+**each** member of `community`. The caller is responsible for recording the returned
+mutations as an `Effect` and applying them.
 
 ### Fruit weights (`fruit_weights.rs`)
 
@@ -296,15 +346,47 @@ All methods take `&self` (not `&mut self`). Implementations manage interior muta
 Every community write is a new snapshot version. There is no overwrite/upsert operation:
 communities are always advanced by appending a new version via `put`.
 
-### Store wrapper (`community_store.rs`)
+### Event log ports (`event_log_repo.rs`)
+
+```rust
+pub trait EventLogProvider {
+    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error>;
+    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
+    fn get_effects_after(&self, community_id: CommunityId, after: SequenceId) -> Result<Vec<Effect>, Error>;
+    fn get_latest_records(&self, community_id: CommunityId, n: usize) -> Result<Vec<Record>, Error>;
+}
+
+pub trait EventLogPersistor {
+    fn append_event(&self, community_id: CommunityId, payload: EventPayload) -> Result<Event, Error>;
+    fn append_effect(&self, event_id: SequenceId, community_id: CommunityId, mutations: Vec<StateMutation>) -> Result<Effect, Error>;
+}
+
+pub trait EventLogRepo: EventLogProvider + EventLogPersistor {}
+```
+
+`get_effects_after` returns all effects for `community_id` whose sequence ID is
+strictly greater than `after`, sorted ascending. Useful for replaying effects since a
+known snapshot.
+
+### Store wrappers (`community_store.rs`, `event_log_store.rs`)
 
 ```rust
 pub struct CommunityStore<CR: CommunityRepo, ELP: EventLogProvider> { ... }
 ```
 
-Thin wrapper that exposes `get`, `get_latest`, and `put` without requiring callers to
-depend on the port traits directly. `get_latest` folds any unapplied effects from the
-event log into the latest snapshot and persists the result before returning.
+| Method | Description |
+|--------|-------------|
+| `new(repo, event_log_provider)` | Construct with any `CommunityRepo` and `EventLogProvider` |
+| `init() -> Result<Community, Error>` | Create and persist a new community at version zero |
+| `get(id, version) -> Result<Option<Community>, Error>` | Fetch a specific snapshot |
+| `get_latest(id) -> Result<Option<Community>, Error>` | Fetch the latest snapshot, folding in any unapplied effects from the event log and persisting the result |
+
+```rust
+pub struct EventLogStore<ELR: EventLogRepo> { ... }
+```
+
+Thin wrapper that exposes all `EventLogProvider` and `EventLogPersistor` methods
+without requiring callers to depend on the port traits directly.
 
 ### Error (`error.rs`)
 
@@ -315,13 +397,22 @@ event log into the latest snapshot and persists the result before returning.
 
 ## In-Memory Database (`in_memory_db` crate)
 
-`InMemoryCommunityRepo` implements `CommunityRepo` (and therefore both
-`CommunityProvider` and `CommunityPersistor`) using a `RwLock<HashMap<CommunityId,
-Community>>`.
+`InMemoryCommunityRepo` implements `CommunityRepo` using a
+`RwLock<HashMap<CommunityId, BTreeMap<SequenceId, Community>>>`. Each community maps to
+a `BTreeMap` of versioned snapshots keyed by `SequenceId`; `get_latest` returns the
+entry with the greatest key.
 
+`InMemoryEventLogRepo` implements `EventLogRepo` using two separate
+`RwLock<HashMap>`s — one for events (keyed by sequence ID) and one for effects (keyed
+by event ID) — plus a shared `AtomicU64` sequence counter.
+
+For both types:
 - Reads acquire a shared read lock.
 - Writes acquire an exclusive write lock.
 - A poisoned lock propagates as a domain `Error`.
+- Both implement `EventLogProvider`/`EventLogPersistor` for both owned and `&`-reference
+  types so they can be shared between a `CommunityStore` and an `EventLogStore` without
+  cloning.
 
 ---
 
@@ -329,8 +420,8 @@ Community>>`.
 
 A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 
-**Start-up**: creates one community backed by `InMemoryCommunityRepo`; creates a
-`RandomGranter` seeded from `rand::thread_rng()`.
+**Start-up**: creates one community backed by `InMemoryCommunityRepo` and
+`InMemoryEventLogRepo`; creates a `RandomGranter` seeded from `rand::thread_rng()`.
 
 **Commands**:
 
@@ -341,6 +432,7 @@ A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 | `grant <count>` | Grant N fruits to every member (recorded as `Grant` event + effect) |
 | `luck <value>` | Set community luck (float in `[0.0, 1.0]`) |
 | `luck <name> <value>` | Set a member's luck |
+| `log <n>` | Show the N most recent log records |
 | `help` | Show command list |
 | `quit` / `exit` | Exit |
 

@@ -40,54 +40,63 @@ impl Fruit {
 
 // ── Standard (9) ─────────────────────────────────────────────────────────────
 
+/// 🍇 Standard-tier fruit.
 pub static GRAPES: Fruit = Fruit {
     emoji: "🍇",
     name: "Grapes",
     category: Category::Standard,
     _rarity: 0,
 };
+/// 🍈 Standard-tier fruit.
 pub static MELON: Fruit = Fruit {
     emoji: "🍈",
     name: "Melon",
     category: Category::Standard,
     _rarity: 8224, // 32 × 257
 };
+/// 🍉 Standard-tier fruit.
 pub static WATERMELON: Fruit = Fruit {
     emoji: "🍉",
     name: "Watermelon",
     category: Category::Standard,
     _rarity: 16448, // 64 × 257
 };
+/// 🍊 Standard-tier fruit.
 pub static TANGERINE: Fruit = Fruit {
     emoji: "🍊",
     name: "Tangerine",
     category: Category::Standard,
     _rarity: 24672, // 96 × 257
 };
+/// 🍋 Standard-tier fruit.
 pub static LEMON: Fruit = Fruit {
     emoji: "🍋",
     name: "Lemon",
     category: Category::Standard,
     _rarity: 32896, // 128 × 257
 };
+/// 🍌 Standard-tier fruit.
 pub static BANANA: Fruit = Fruit {
     emoji: "🍌",
     name: "Banana",
     category: Category::Standard,
     _rarity: 40863, // 159 × 257
 };
+/// 🍍 Standard-tier fruit.
 pub static PINEAPPLE: Fruit = Fruit {
     emoji: "🍍",
     name: "Pineapple",
     category: Category::Standard,
     _rarity: 49087, // 191 × 257
 };
+/// 🍎 Standard-tier fruit.
 pub static RED_APPLE: Fruit = Fruit {
     emoji: "🍎",
     name: "Red Apple",
     category: Category::Standard,
     _rarity: 57311, // 223 × 257
 };
+/// 🍏 Standard-tier fruit.
 pub static GREEN_APPLE: Fruit = Fruit {
     emoji: "🍏",
     name: "Green Apple",
@@ -97,54 +106,63 @@ pub static GREEN_APPLE: Fruit = Fruit {
 
 // ── Rare (9) ──────────────────────────────────────────────────────────────────
 
+/// 🍐 Rare-tier fruit.
 pub static PEAR: Fruit = Fruit {
     emoji: "🍐",
     name: "Pear",
     category: Category::Rare,
     _rarity: 0,
 };
+/// 🍑 Rare-tier fruit.
 pub static PEACH: Fruit = Fruit {
     emoji: "🍑",
     name: "Peach",
     category: Category::Rare,
     _rarity: 8224, // 32 × 257
 };
+/// 🍒 Rare-tier fruit.
 pub static CHERRIES: Fruit = Fruit {
     emoji: "🍒",
     name: "Cherries",
     category: Category::Rare,
     _rarity: 16448, // 64 × 257
 };
+/// 🍓 Rare-tier fruit.
 pub static STRAWBERRY: Fruit = Fruit {
     emoji: "🍓",
     name: "Strawberry",
     category: Category::Rare,
     _rarity: 24672, // 96 × 257
 };
+/// 🥑 Rare-tier fruit.
 pub static AVOCADO: Fruit = Fruit {
     emoji: "🥑",
     name: "Avocado",
     category: Category::Rare,
     _rarity: 32896, // 128 × 257
 };
+/// 🥒 Rare-tier fruit.
 pub static CUCUMBER: Fruit = Fruit {
     emoji: "🥒",
     name: "Cucumber",
     category: Category::Rare,
     _rarity: 40863, // 159 × 257
 };
+/// 🥜 Rare-tier fruit.
 pub static PEANUT: Fruit = Fruit {
     emoji: "🥜",
     name: "Peanut",
     category: Category::Rare,
     _rarity: 49087, // 191 × 257
 };
+/// 🥝 Rare-tier fruit.
 pub static KIWI: Fruit = Fruit {
     emoji: "🥝",
     name: "Kiwi",
     category: Category::Rare,
     _rarity: 57311, // 223 × 257
 };
+/// 🥥 Rare-tier fruit.
 pub static COCONUT: Fruit = Fruit {
     emoji: "🥥",
     name: "Coconut",
@@ -154,48 +172,56 @@ pub static COCONUT: Fruit = Fruit {
 
 // ── Exotic (8) ────────────────────────────────────────────────────────────────
 
+/// 🥭 Exotic-tier fruit.
 pub static MANGO: Fruit = Fruit {
     emoji: "🥭",
     name: "Mango",
     category: Category::Exotic,
     _rarity: 0,
 };
+/// 🍅 Exotic-tier fruit.
 pub static TOMATO: Fruit = Fruit {
     emoji: "🍅",
     name: "Tomato",
     category: Category::Exotic,
     _rarity: 9252, // 36 × 257
 };
+/// 🌰 Exotic-tier fruit.
 pub static CHESTNUT: Fruit = Fruit {
     emoji: "🌰",
     name: "Chestnut",
     category: Category::Exotic,
     _rarity: 18761, // 73 × 257
 };
+/// 🌶 Exotic-tier fruit.
 pub static HOT_PEPPER: Fruit = Fruit {
     emoji: "🌶",
     name: "Hot Pepper",
     category: Category::Exotic,
     _rarity: 28013, // 109 × 257
 };
+/// 🫑 Exotic-tier fruit.
 pub static BELL_PEPPER: Fruit = Fruit {
     emoji: "🫑",
     name: "Bell Pepper",
     category: Category::Exotic,
     _rarity: 37522, // 146 × 257
 };
+/// 🫚 Exotic-tier fruit.
 pub static GINGER_ROOT: Fruit = Fruit {
     emoji: "🫚",
     name: "Ginger Root",
     category: Category::Exotic,
     _rarity: 46774, // 182 × 257
 };
+/// 🫐 Exotic-tier fruit.
 pub static BLUEBERRIES: Fruit = Fruit {
     emoji: "🫐",
     name: "Blueberries",
     category: Category::Exotic,
     _rarity: 56283, // 219 × 257
 };
+/// 🫒 Exotic-tier fruit.
 pub static OLIVE: Fruit = Fruit {
     emoji: "🫒",
     name: "Olive",

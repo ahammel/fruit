@@ -13,6 +13,10 @@ use fruit_in_memory_db::{
     community_repo::InMemoryCommunityRepo, event_log_repo::InMemoryEventLogRepo,
 };
 
+/// Runs the interactive REPL for the fruit game.
+///
+/// Creates a single in-memory community and enters a read-eval-print loop.
+/// Type `help` at the prompt for a list of available commands.
 pub fn run() {
     let event_log_repo = InMemoryEventLogRepo::new();
     let event_log = EventLogStore::new(&event_log_repo);

@@ -55,7 +55,7 @@ bin/cargo-mutants:
 tm test-mutation: bin/cargo-mutants
 	PATH="$(CURDIR)/bin:$$PATH" cargo mutants \
 		--exclude "command_line_service/**" \
-		-j 10
+		-j 4
 
 w watch:
 	fd .rs | entr -s 'clear && make c && make l && make tc && make pc'
