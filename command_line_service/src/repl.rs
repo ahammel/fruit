@@ -5,6 +5,8 @@ use fruit_domain::{
     community_store::CommunityStore,
     event_log::{EventPayload, HasSequenceId, StateMutation},
     event_log_store::EventLogStore,
+    fruit::FRUITS,
+    gifter::compute_gift,
     granter::Granter,
     member::Member,
     random_granter::RandomGranter,
@@ -64,6 +66,7 @@ pub fn run() {
             "add" => cmd_add(&event_log, community_id, &tokens[1..]),
             "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
             "grant" => cmd_grant(&store, &event_log, community_id, &mut granter, &tokens[1..]),
+            "gift" => cmd_gift(&store, &event_log, community_id, &tokens[1..]),
             "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]),
             "log" => {
                 match &tokens[1..].first().and_then(|s| s.parse::<usize>().ok()) {
@@ -152,6 +155,73 @@ fn cmd_grant(
     let mutations = granter.grant(&community, count);
     let effect = event_log.append_effect(event.id, id, mutations).unwrap();
     community.apply_effects([effect]);
+}
+
+fn cmd_gift(
+    store: &Store<'_>,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
+    id: CommunityId,
+    args: &[&str],
+) {
+    // usage: gift <sender> <emoji> <recipient>
+    if args.len() < 3 {
+        println!("usage: gift <sender> <emoji> <recipient>");
+        return;
+    }
+    let sender_name = args[0];
+    let emoji = args[1];
+    let recipient_name = args[2..].join(" ");
+
+    let fruit = match FRUITS.iter().find(|f| f.emoji == emoji) {
+        Some(f) => *f,
+        None => {
+            println!("unknown fruit emoji '{emoji}'");
+            return;
+        }
+    };
+
+    let community = fetch(store, id);
+
+    let sender_id = match community
+        .members
+        .values()
+        .find(|m| m.display_name == sender_name)
+        .map(|m| m.id)
+    {
+        Some(mid) => mid,
+        None => {
+            println!("no member named '{sender_name}'");
+            return;
+        }
+    };
+    let recipient_id = match community
+        .members
+        .values()
+        .find(|m| m.display_name == recipient_name)
+        .map(|m| m.id)
+    {
+        Some(mid) => mid,
+        None => {
+            println!("no member named '{recipient_name}'");
+            return;
+        }
+    };
+
+    let event = event_log
+        .append_event(
+            id,
+            EventPayload::Gift {
+                sender_id,
+                recipient_id,
+                fruit,
+            },
+        )
+        .unwrap();
+    let mutations = compute_gift(&community, sender_id, recipient_id, fruit);
+    if mutations.is_empty() {
+        println!("{sender_name} does not hold {emoji}");
+    }
+    event_log.append_effect(event.id, id, mutations).unwrap();
 }
 
 fn cmd_luck(
@@ -264,6 +334,7 @@ fn print_help() {
     println!("  add <name>           add a member");
     println!("  remove <name>        remove a member");
     println!("  grant <count>        grant N fruits to each member");
+    println!("  gift <sender> <emoji> <recipient>  gift a fruit");
     println!("  luck <value>         set community luck  (0.0–1.0)");
     println!("  luck <name> <value>  set member luck     (0.0–1.0)");
     println!("  log <n>              show the N most recent events");

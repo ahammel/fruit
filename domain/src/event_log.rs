@@ -92,6 +92,15 @@ pub enum EventPayload {
     SetCommunityLuck { luck: u16 },
     /// Set the luck of the member identified by `member_id` to `luck` (raw `u16`).
     SetMemberLuck { member_id: MemberId, luck: u16 },
+    /// Transfer one instance of `fruit` from the member `sender_id` to `recipient_id`.
+    Gift {
+        /// The member giving the fruit.
+        sender_id: MemberId,
+        /// The member receiving the fruit.
+        recipient_id: MemberId,
+        /// The fruit being transferred.
+        fruit: Fruit,
+    },
 }
 
 /// A recorded player intention. Events do not modify
@@ -124,6 +133,10 @@ impl HasCommunityId for Event {
 pub enum StateMutation {
     /// Add one instance of `fruit` to the bag of the member identified by `member_id`.
     AddFruitToMember { member_id: MemberId, fruit: Fruit },
+    /// Remove one instance of `fruit` from the bag of the member identified by `member_id`.
+    ///
+    /// Has no effect if the member does not hold the fruit.
+    RemoveFruitFromMember { member_id: MemberId, fruit: Fruit },
     /// Add `member` to the community.
     AddMember { member: Member },
     /// Remove the member identified by `member_id` from the community.
@@ -158,6 +171,11 @@ impl Effect {
                 StateMutation::AddFruitToMember { member_id, fruit } => {
                     if let Some(member) = community.members.get_mut(member_id) {
                         member.receive(*fruit);
+                    }
+                }
+                StateMutation::RemoveFruitFromMember { member_id, fruit } => {
+                    if let Some(member) = community.members.get_mut(member_id) {
+                        member.bag.remove(*fruit);
                     }
                 }
                 StateMutation::AddMember { member } => {

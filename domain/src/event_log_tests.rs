@@ -137,6 +137,45 @@ fn apply_remove_member_removes_member() {
 }
 
 #[test]
+fn apply_remove_fruit_from_member_removes_one() {
+    let (mut community, alice_id) = community_with_alice();
+    community
+        .members
+        .get_mut(&alice_id)
+        .unwrap()
+        .receive(STRAWBERRY);
+    let effect = Effect {
+        id: SequenceId::from_u64(2),
+        event_id: SequenceId::from_u64(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::RemoveFruitFromMember {
+            member_id: alice_id,
+            fruit: STRAWBERRY,
+        }],
+    };
+    effect.apply(&mut community);
+    assert_eq!(community.members[&alice_id].bag.count(STRAWBERRY), 0);
+}
+
+#[test]
+fn apply_remove_fruit_from_member_skips_absent_member() {
+    let (mut community, _) = community_with_alice();
+    let absent_id = MemberId::new();
+    let before = community.clone();
+    let effect = Effect {
+        id: SequenceId::from_u64(2),
+        event_id: SequenceId::from_u64(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::RemoveFruitFromMember {
+            member_id: absent_id,
+            fruit: STRAWBERRY,
+        }],
+    };
+    effect.apply(&mut community);
+    assert_eq!(community, before);
+}
+
+#[test]
 fn apply_set_community_luck_updates_luck() {
     let (mut community, _) = community_with_alice();
     let effect = Effect {

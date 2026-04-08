@@ -15,6 +15,7 @@ pub mod event_log_repo;
 pub mod event_log_store;
 pub mod fruit;
 pub mod fruit_weights;
+pub mod gifter;
 pub mod granter;
 pub mod id;
 pub mod member;
