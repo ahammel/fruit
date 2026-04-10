@@ -6,6 +6,7 @@
 //! `fruit_in_memory_db`.
 
 pub mod bag;
+pub mod burner;
 pub mod community;
 pub mod community_repo;
 pub mod community_store;

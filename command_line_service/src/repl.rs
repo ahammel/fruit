@@ -1,6 +1,7 @@
 use std::io::{self, BufRead, Write};
 
 use fruit_domain::{
+    burner::compute_burn,
     community::{Community, CommunityId},
     community_store::CommunityStore,
     event_log::{EventPayload, HasSequenceId, StateMutation},
@@ -67,6 +68,7 @@ pub fn run() {
             "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
             "grant" => cmd_grant(&store, &event_log, community_id, &mut granter, &tokens[1..]),
             "gift" => cmd_gift(&store, &event_log, community_id, &tokens[1..]),
+            "burn" => cmd_burn(&store, &event_log, community_id, &tokens[1..]),
             "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]),
             "log" => {
                 match &tokens[1..].first().and_then(|s| s.parse::<usize>().ok()) {
@@ -224,6 +226,62 @@ fn cmd_gift(
     event_log.append_effect(event.id, id, mutations).unwrap();
 }
 
+fn cmd_burn(
+    store: &Store<'_>,
+    event_log: &EventLogStore<&InMemoryEventLogRepo>,
+    id: CommunityId,
+    args: &[&str],
+) {
+    // usage: burn <name> <emoji> [<emoji>...]
+    if args.len() < 2 {
+        println!("usage: burn <name> <emoji> [<emoji>...]");
+        return;
+    }
+    let name = args[0];
+    let emoji_args = &args[1..];
+
+    let mut fruits = Vec::new();
+    for emoji in emoji_args {
+        match FRUITS.iter().find(|f| f.emoji == *emoji) {
+            Some(f) => fruits.push(*f),
+            None => {
+                println!("unknown fruit emoji '{emoji}'");
+                return;
+            }
+        }
+    }
+
+    let community = fetch(store, id);
+
+    let member_id = match community
+        .members
+        .values()
+        .find(|m| m.display_name == name)
+        .map(|m| m.id)
+    {
+        Some(mid) => mid,
+        None => {
+            println!("no member named '{name}'");
+            return;
+        }
+    };
+
+    let event = event_log
+        .append_event(
+            id,
+            EventPayload::Burn {
+                member_id,
+                fruits: fruits.clone(),
+            },
+        )
+        .unwrap();
+    let mutations = compute_burn(&community, member_id, &fruits);
+    if mutations.is_empty() {
+        println!("{name} holds none of the requested fruits");
+    }
+    event_log.append_effect(event.id, id, mutations).unwrap();
+}
+
 fn cmd_luck(
     store: &Store<'_>,
     event_log: &EventLogStore<&InMemoryEventLogRepo>,
@@ -335,6 +393,7 @@ fn print_help() {
     println!("  remove <name>        remove a member");
     println!("  grant <count>        grant N fruits to each member");
     println!("  gift <sender> <emoji> <recipient>  gift a fruit");
+    println!("  burn <name> <emoji> [<emoji>...]  burn fruits (+community luck)");
     println!("  luck <value>         set community luck  (0.0–1.0)");
     println!("  luck <name> <value>  set member luck     (0.0–1.0)");
     println!("  log <n>              show the N most recent events");

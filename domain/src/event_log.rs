@@ -101,6 +101,17 @@ pub enum EventPayload {
         /// The fruit being transferred.
         fruit: Fruit,
     },
+    /// Destroy one or more fruits held by `member_id`, granting a community luck bonus.
+    ///
+    /// `fruits` may contain duplicates and may span multiple fruit types.
+    /// If the member does not hold enough of a particular fruit, as many as they
+    /// hold are burned and the remainder of that type is silently skipped.
+    Burn {
+        /// The member burning the fruits.
+        member_id: MemberId,
+        /// The fruits requested to be burned (duplicates allowed).
+        fruits: Vec<Fruit>,
+    },
 }
 
 /// A recorded player intention. Events do not modify
