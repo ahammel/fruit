@@ -17,7 +17,6 @@ use crate::{
 fn apply_grant(community: &mut Community, mutations: Vec<StateMutation>) {
     Effect {
         id: SequenceId::from_u64(1),
-        event_id: SequenceId::from_u64(0),
         community_id: community.id,
         mutations,
     }

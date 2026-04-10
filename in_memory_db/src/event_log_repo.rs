@@ -19,14 +19,15 @@ use fruit_domain::{
 
 /// In-memory implementation of [`EventLogRepo`].
 ///
-/// Events and effects share a single auto-incrementing sequence, giving a total
-/// ordering across all entries. Both collections are protected by separate
-/// [`RwLock`]s to allow concurrent reads.
+/// Events and their corresponding Effects share the same [`SequenceId`]: the counter
+/// advances only when an Event is appended. An Effect is stored under the same ID as its
+/// originating Event. Both collections are protected by separate [`RwLock`]s to allow
+/// concurrent reads.
 #[derive(Debug)]
 pub struct InMemoryEventLogRepo {
     sequence: AtomicU64,
     events: RwLock<HashMap<SequenceId, Event>>,
-    effects_by_event: RwLock<HashMap<SequenceId, Effect>>,
+    effects: RwLock<HashMap<SequenceId, Effect>>,
 }
 
 impl InMemoryEventLogRepo {
@@ -35,7 +36,7 @@ impl InMemoryEventLogRepo {
         Self {
             sequence: AtomicU64::new(0),
             events: RwLock::new(HashMap::new()),
-            effects_by_event: RwLock::new(HashMap::new()),
+            effects: RwLock::new(HashMap::new()),
         }
     }
 
@@ -52,20 +53,16 @@ impl Default for InMemoryEventLogRepo {
 
 impl EventLogProvider for InMemoryEventLogRepo {
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
-        if let Some(event) = self.events.read()?.get(&id).cloned() {
-            return Ok(Some(event.into()));
-        }
-        let effect = self
-            .effects_by_event
-            .read()?
-            .values()
-            .find(|e| e.id == id)
-            .cloned();
-        Ok(effect.map(Into::into))
+        let event = match self.events.read()?.get(&id).cloned() {
+            Some(e) => e,
+            None => return Ok(None),
+        };
+        let effect = self.effects.read()?.get(&id).cloned();
+        Ok(Some(Record { event, effect }))
     }
 
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
-        Ok(self.effects_by_event.read()?.get(&event_id).cloned())
+        Ok(self.effects.read()?.get(&event_id).cloned())
     }
 
     fn get_effects_after(
@@ -74,7 +71,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         after: SequenceId,
     ) -> Result<Vec<Effect>, Error> {
         let mut effects: Vec<Effect> = self
-            .effects_by_event
+            .effects
             .read()?
             .values()
             .filter(|e| e.community_id == community_id && e.id > after)
@@ -89,25 +86,17 @@ impl EventLogProvider for InMemoryEventLogRepo {
         community_id: CommunityId,
         n: usize,
     ) -> Result<Vec<Record>, Error> {
-        let mut records: Vec<Record> = Vec::new();
-        self.events
+        let effects = self.effects.read()?;
+        let mut records: Vec<Record> = self
+            .events
             .read()?
             .values()
             .filter(|e| e.community_id == community_id)
-            .for_each({
-                |e| {
-                    records.push(e.clone().into());
-                }
-            });
-
-        self.effects_by_event
-            .read()?
-            .values()
-            .filter(|e| e.community_id == community_id)
-            .for_each(|e| {
-                records.push(e.clone().into());
-            });
-
+            .map(|e| Record {
+                effect: effects.get(&e.id).cloned(),
+                event: e.clone(),
+            })
+            .collect();
         records.sort_by_key(|e| std::cmp::Reverse(e.sequence_id()));
         records.truncate(n);
         Ok(records)
@@ -144,14 +133,12 @@ impl EventLogPersistor for InMemoryEventLogRepo {
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
     ) -> Result<Effect, Error> {
-        let id = self.next_id();
         let effect = Effect {
-            id,
-            event_id,
+            id: event_id,
             community_id,
             mutations,
         };
-        let mut effects = self.effects_by_event.write()?;
+        let mut effects = self.effects.write()?;
         if effects.contains_key(&event_id) {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,

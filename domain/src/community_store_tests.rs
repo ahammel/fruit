@@ -3,8 +3,7 @@ use std::io;
 use super::*;
 use crate::{
     community_repo::{CommunityPersistor, CommunityProvider},
-    event_log::Effect,
-    event_log::Record,
+    event_log::{Effect, Record},
     id::{IntegerIdentifier, UuidIdentifier},
 };
 
@@ -170,8 +169,7 @@ fn get_latest_propagates_put_error_after_applying_effects() {
     let community = Community::new();
     let id = community.id;
     let effect = Effect {
-        id: SequenceId::from_u64(2),
-        event_id: SequenceId::from_u64(1),
+        id: SequenceId::from_u64(1),
         community_id: id,
         mutations: vec![],
     };

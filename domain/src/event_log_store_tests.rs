@@ -2,6 +2,7 @@ use std::io;
 
 use super::*;
 use crate::{
+    event_log::Record,
     event_log_repo::{EventLogPersistor, EventLogProvider},
     id::{IntegerIdentifier, UuidIdentifier},
 };

@@ -25,13 +25,14 @@ model gives us:
 
 ## Shared ID Sequence
 
-Events and Effects share a single auto-incrementing integer sequence. This gives a total
-ordering across all Events and Effects in the system and is the foundation for determining
-"state at the time an Event was stored."
+Events and their corresponding Effects share the same sequence ID. The counter
+auto-increments only for Events; storing an Effect does not advance it. Event n and
+Effect n both carry ID n. Within a given ID, the Event is logically ordered before its
+Effect.
 
-An Event is assigned an ID when it is stored. Its corresponding Effect is assigned the
-next available ID from the same sequence when it is calculated and stored. Because other
-Events may be stored in the interim, the Effect's ID is not necessarily `event_id + 1`.
+This gives a total ordering across all log entries and guarantees that no Effect can
+appear at a later sequence position than a subsequent Event. Effect n is always computed
+against the state produced by applying Effects 1 through n−1.
 
 ---
 
@@ -54,19 +55,21 @@ Event {
 ### Effect
 
 An Effect is the **computed consequence** of its Event. It is calculated by applying the
-Event to the Community state as it existed immediately before that Event's ID in the
-sequence. An Effect may be a no-op (e.g. the command was invalid — sender didn't hold the
-fruit) or may describe multiple state mutations (e.g. remove a fruit from one bag, add it
-to another, adjust personal and community luck).
+Event to the Community state produced by all Effects with ID < event.id. An Effect may be
+a no-op (e.g. the command was invalid — sender didn't hold the fruit) or may describe
+multiple state mutations (e.g. remove a fruit from one bag, add it to another, adjust
+personal and community luck).
 
 ```
 Effect {
-    id:           u64              // from the shared sequence
-    event_id:     u64             // pointer back to the Event that caused this Effect
+    id:           u64              // same as the Event's ID
     community_id: CommunityId
     mutations:    Vec<StateMutation>  // empty = no-op
 }
 ```
+
+The `event_id` pointer is omitted because `effect.id == event.id`; the pairing is
+established by the shared sequence ID.
 
 ### Community Snapshot
 
@@ -100,13 +103,12 @@ background process.
 
 1. A player submits a command (e.g. "gift 🍇 to Alice").
 2. The command is validated structurally (correct syntax, known member names, etc.) and,
-   if valid, written to the event log as an **Event** with the next available ID.
-3. The **current Community state** is derived: find the most recent snapshot with
-   `effect_id < event.id`, then apply all Effects with IDs between that snapshot's
-   `effect_id` (exclusive) and `event.id` (exclusive) in order.
-4. The Event is applied to that state to produce an **Effect**, which is written with the
-   next available ID from the shared sequence.
-5. An updated Community Snapshot is stored, keyed by the Effect's ID.
+   if valid, written to the event log as an **Event** with the next available ID n.
+3. The **Community state before event n** is derived: find the most recent snapshot with
+   `version < n`, then apply all Effects with IDs in `(snapshot.version, n)` in order.
+4. The Event is applied to that state to produce an **Effect**, which is written with ID n
+   (the same ID as the Event).
+5. An updated Community Snapshot is stored, keyed by ID n.
 
 In the first implementation steps (3–5) happen synchronously in the same request. The
 design anticipates moving to an asynchronous worker that tails the event log and processes
@@ -117,34 +119,35 @@ Events independently.
 ## Interleaving
 
 Because Effects are calculated after their Events are stored, two Events can be stored
-before either Effect is calculated:
+before either Effect is calculated. Under the shared-ID model, Effects are always computed
+in event-ID order, each building on the state produced by all preceding Effects:
 
 ```
 ID 1  Event  (Alice gifts 🍇 to Bob)
-ID 2  Event  (Bob burns 🍓)           ← stored before Effect 1 is written
-ID 3  Effect (Gift effect for ID 1)
-ID 4  Effect (Burn effect for ID 2, computed against state before Effect 3)
+ID 2  Event  (Bob burns 🍓)              ← may be stored before Effect 1 is written
+ID 1  Effect (Gift effect — computed against state before ID 1)
+ID 2  Effect (Burn effect — computed against state through Effect 1)
 ```
 
-In this scenario Bob's burn (ID 2) is computed against state that does not yet include
-Alice's gift. At Slack / Teams / Discord interaction volumes — where concurrent submissions
-from the same community are rare — this should not cause observable problems in practice.
+Effect 2 is always computed against a state that includes Effect 1, regardless of whether
+Event 2 was stored before Effect 1 was written. This eliminates the class of anomalies
+possible in models where effects are assigned independent IDs and may interleave with
+later events.
 
 ### Invariant violations under interleaving
 
-Because each Effect is computed against the state produced by all prior Effects (not prior
-Events), invariants are enforced at Effect-calculation time rather than Event-storage time.
-This means a command that looked valid when the player issued it may produce a no-op Effect
-once the preceding Effects have been applied.
+Invariants are enforced at Effect-calculation time rather than Event-storage time. A
+command that looked valid when the player issued it may produce a no-op Effect once the
+preceding Effects have been applied.
 
 Example: Bob holds exactly one 🍓. He submits two gift commands in quick succession before
 either Effect is calculated.
 
 ```
 ID 1  Event  (Bob gifts 🍓 to Alice)
-ID 2  Event  (Bob gifts 🍓 to Carol)   ← stored before Effect 1 is written
-ID 3  Effect (Gift 🍓 from Bob to Alice — valid; Bob held 🍓 at state before ID 1)
-ID 4  Effect (no-op — invalid; Bob no longer holds 🍓 after Effect ID 3)
+ID 2  Event  (Bob gifts 🍓 to Carol)     ← stored before Effect 1 is written
+ID 1  Effect (Gift 🍓 from Bob to Alice — valid; Bob held 🍓 before ID 1)
+ID 2  Effect (no-op — invalid; Bob no longer holds 🍓 after Effect 1)
 ```
 
 Bob is not penalised for the second command; the no-op Effect is simply a record that the

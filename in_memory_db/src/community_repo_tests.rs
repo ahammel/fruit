@@ -234,5 +234,5 @@ fn store_get_latest_applies_multiple_pending_effects() {
 
     let latest = store.get_latest(id).unwrap().unwrap();
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
-    assert!(latest.version > grant_event.id); // effect id > event id (shared sequence)
+    assert_eq!(latest.version, grant_event.id); // effect and event share the same ID
 }

@@ -103,7 +103,6 @@ fn apply_effects_applies_mutations_and_advances_version() {
     let effects = vec![
         Effect {
             id: v1,
-            event_id: SequenceId::from_u64(0),
             community_id: community.id,
             mutations: vec![StateMutation::AddFruitToMember {
                 member_id: alice_id,
@@ -112,7 +111,6 @@ fn apply_effects_applies_mutations_and_advances_version() {
         },
         Effect {
             id: v2,
-            event_id: v1,
             community_id: community.id,
             mutations: vec![StateMutation::AddFruitToMember {
                 member_id: alice_id,

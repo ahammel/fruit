@@ -242,8 +242,7 @@ pub enum StateMutation {
 }
 
 pub struct Effect {
-    pub id:           SequenceId,
-    pub event_id:     SequenceId,
+    pub id:           SequenceId,   // same as the Event's ID
     pub community_id: CommunityId,
     pub mutations:    Vec<StateMutation>,
 }
@@ -359,14 +358,17 @@ pub trait EventLogProvider {
 pub trait EventLogPersistor {
     fn append_event(&self, community_id: CommunityId, payload: EventPayload) -> Result<Event, Error>;
     fn append_effect(&self, event_id: SequenceId, community_id: CommunityId, mutations: Vec<StateMutation>) -> Result<Effect, Error>;
+    // append_effect stores an Effect with id == event_id; the shared-ID invariant is
+    // enforced by the implementation (panics or errors if event_id has no corresponding event).
 }
 
 pub trait EventLogRepo: EventLogProvider + EventLogPersistor {}
 ```
 
 `get_effects_after` returns all effects for `community_id` whose sequence ID is
-strictly greater than `after`, sorted ascending. Useful for replaying effects since a
-known snapshot.
+strictly greater than `after`, sorted ascending. Because events and effects share IDs,
+this is equivalent to "all effects for events after the given position." Useful for
+replaying effects since a known snapshot.
 
 ### Store wrappers (`community_store.rs`, `event_log_store.rs`)
 
@@ -403,8 +405,9 @@ a `BTreeMap` of versioned snapshots keyed by `SequenceId`; `get_latest` returns 
 entry with the greatest key.
 
 `InMemoryEventLogRepo` implements `EventLogRepo` using two separate
-`RwLock<HashMap>`s — one for events (keyed by sequence ID) and one for effects (keyed
-by event ID) — plus a shared `AtomicU64` sequence counter.
+`RwLock<HashMap>`s — one for events (keyed by sequence ID) and one for effects (also
+keyed by sequence ID, which equals the event's ID) — plus a shared `AtomicU64` sequence
+counter that is incremented only when appending events.
 
 For both types:
 - Reads acquire a shared read lock.

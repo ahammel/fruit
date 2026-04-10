@@ -1,18 +1,17 @@
 use crate::{
     community::CommunityId,
     error::Error,
-    event_log::Record,
-    event_log::{Effect, StateMutation},
-    event_log::{Event, EventPayload, SequenceId},
+    event_log::Event,
+    event_log::{Effect, EventPayload, Record, SequenceId, StateMutation},
 };
 
 /// Read port for the event and effect log.
 pub trait EventLogProvider {
-    /// Returns the log entry with the given sequence ID, or `None` if not found.
+    /// Returns the log entry at `id`, or `None` if not found.
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error>;
 
-    /// Returns the effect whose `event_id` matches the given ID, or `None` if the
-    /// event has not yet been processed.
+    /// Returns the effect with the given ID (equal to its originating event's ID),
+    /// or `None` if the event has not yet been processed.
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
 
     /// Returns all effects for `community_id` whose sequence ID is strictly greater
@@ -24,7 +23,8 @@ pub trait EventLogProvider {
     ) -> Result<Vec<Effect>, Error>;
 
     /// Returns the `n` most recent events for `community_id`, sorted by sequence ID
-    /// descending.
+    /// descending. Each entry pairs the event with its computed effect, or `None` if
+    /// the event has not yet been processed.
     fn get_latest_records(&self, community_id: CommunityId, n: usize)
         -> Result<Vec<Record>, Error>;
 }
@@ -38,7 +38,10 @@ pub trait EventLogPersistor {
         payload: EventPayload,
     ) -> Result<Event, Error>;
 
-    /// Assign the next sequence ID to a new effect and store it.
+    /// Store an effect with the same sequence ID as its originating event.
+    ///
+    /// The effect's `id` will equal `event_id`. Returns an error if an effect for
+    /// `event_id` has already been stored.
     fn append_effect(
         &self,
         event_id: SequenceId,

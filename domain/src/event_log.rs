@@ -40,42 +40,25 @@ pub trait HasSequenceId {
     fn sequence_id(&self) -> SequenceId;
 }
 
-/// A single entry in the shared event/effect log, identified by a [`SequenceId`](crate::event::SequenceId).
+/// A log entry: an [`Event`] paired with its computed [`Effect`], or `None` if the
+/// event has not yet been processed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Record {
-    /// A player intention that was recorded.
-    Event(Event),
-    /// The computed consequences of an event.
-    Effect(Effect),
+pub struct Record {
+    /// The recorded player intention.
+    pub event: Event,
+    /// The computed consequence, or `None` if not yet processed.
+    pub effect: Option<Effect>,
 }
 
 impl HasSequenceId for Record {
     fn sequence_id(&self) -> SequenceId {
-        match self {
-            Record::Event(e) => e.sequence_id(),
-            Record::Effect(e) => e.sequence_id(),
-        }
+        self.event.id
     }
 }
 
 impl HasCommunityId for Record {
     fn community_id(&self) -> CommunityId {
-        match self {
-            Record::Event(e) => e.community_id(),
-            Record::Effect(e) => e.community_id(),
-        }
-    }
-}
-
-impl From<Event> for Record {
-    fn from(event: Event) -> Self {
-        Record::Event(event)
-    }
-}
-
-impl From<Effect> for Record {
-    fn from(effect: Effect) -> Self {
-        Record::Effect(effect)
+        self.event.community_id
     }
 }
 
@@ -127,18 +110,6 @@ pub struct Event {
     pub payload: EventPayload,
 }
 
-impl HasSequenceId for Event {
-    fn sequence_id(&self) -> SequenceId {
-        self.id
-    }
-}
-
-impl HasCommunityId for Event {
-    fn community_id(&self) -> CommunityId {
-        self.community_id
-    }
-}
-
 /// An atomic change to [`Community`] state produced as part of an [`Effect`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateMutation {
@@ -160,12 +131,13 @@ pub enum StateMutation {
 
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain
 /// zero mutations (a no-op, e.g. when the event violated an invariant) or many.
+///
+/// An `Effect` carries the same [`SequenceId`] as its originating `Event`. Use the shared
+/// ID to correlate the two.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Effect {
-    /// Position in the shared event/effect sequence.
+    /// Position in the shared event/effect sequence. Equals the originating `Event`'s ID.
     pub id: SequenceId,
-    /// The event that caused this effect.
-    pub event_id: SequenceId,
     /// The community this effect applies to.
     pub community_id: CommunityId,
     /// The state changes produced by this effect. Empty if the event was a no-op.
@@ -207,18 +179,6 @@ impl Effect {
                 }
             }
         }
-    }
-}
-
-impl HasSequenceId for Effect {
-    fn sequence_id(&self) -> SequenceId {
-        self.id
-    }
-}
-
-impl HasCommunityId for Effect {
-    fn community_id(&self) -> CommunityId {
-        self.community_id
     }
 }
 

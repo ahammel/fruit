@@ -1,6 +1,10 @@
 use super::*;
 use fruit_domain::{
-    community::HasCommunityId, fruit::STRAWBERRY, id::UuidIdentifier, member::MemberId,
+    community::HasCommunityId,
+    event_log::{HasSequenceId, Record},
+    fruit::STRAWBERRY,
+    id::UuidIdentifier,
+    member::MemberId,
 };
 
 fn log() -> InMemoryEventLogRepo {
@@ -58,19 +62,31 @@ fn get_record_returns_err_when_event_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: poisoned_event_map(),
-        effects_by_event: RwLock::new(HashMap::new()),
+        effects: RwLock::new(HashMap::new()),
     };
     assert!(log.get_record(SequenceId::from_u64(1)).is_err());
 }
 
 #[test]
 fn get_record_returns_err_when_effect_lock_is_poisoned() {
+    use fruit_domain::event_log::EventPayload;
+    let id = SequenceId::from_u64(1);
+    let cid = community_id();
+    let mut events = HashMap::new();
+    events.insert(
+        id,
+        Event {
+            id,
+            community_id: cid,
+            payload: EventPayload::Grant { count: 1 },
+        },
+    );
     let log = InMemoryEventLogRepo {
-        sequence: AtomicU64::new(0),
-        events: RwLock::new(HashMap::new()),
-        effects_by_event: poisoned_effect_map(),
+        sequence: AtomicU64::new(1),
+        events: RwLock::new(events),
+        effects: poisoned_effect_map(),
     };
-    assert!(log.get_record(SequenceId::from_u64(1)).is_err());
+    assert!(log.get_record(id).is_err());
 }
 
 #[test]
@@ -78,7 +94,7 @@ fn append_event_returns_err_when_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: poisoned_event_map(),
-        effects_by_event: RwLock::new(HashMap::new()),
+        effects: RwLock::new(HashMap::new()),
     };
     assert!(log
         .append_event(community_id(), EventPayload::Grant { count: 1 })
@@ -90,7 +106,7 @@ fn get_effect_for_event_returns_err_when_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: RwLock::new(HashMap::new()),
-        effects_by_event: poisoned_effect_map(),
+        effects: poisoned_effect_map(),
     };
     assert!(log.get_effect_for_event(SequenceId::from_u64(1)).is_err());
 }
@@ -100,7 +116,7 @@ fn append_effect_returns_err_when_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: RwLock::new(HashMap::new()),
-        effects_by_event: poisoned_effect_map(),
+        effects: poisoned_effect_map(),
     };
     assert!(log
         .append_effect(SequenceId::from_u64(1), community_id(), vec![])
@@ -164,7 +180,7 @@ fn get_effects_after_returns_err_when_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: RwLock::new(HashMap::new()),
-        effects_by_event: poisoned_effect_map(),
+        effects: poisoned_effect_map(),
     };
     assert!(log
         .get_effects_after(community_id(), SequenceId::zero())
@@ -176,7 +192,7 @@ fn get_latest_events_returns_err_when_events_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: poisoned_event_map(),
-        effects_by_event: RwLock::new(HashMap::new()),
+        effects: RwLock::new(HashMap::new()),
     };
     assert!(log.get_latest_records(community_id(), 5).is_err());
 }
@@ -186,7 +202,7 @@ fn get_latest_events_returns_err_when_effects_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: RwLock::new(HashMap::new()),
-        effects_by_event: poisoned_effect_map(),
+        effects: poisoned_effect_map(),
     };
     assert!(log.get_latest_records(community_id(), 5).is_err());
 }
@@ -194,7 +210,7 @@ fn get_latest_events_returns_err_when_effects_lock_is_poisoned() {
 // --- record round-trips ---
 
 #[test]
-fn get_record_returns_event_after_append() {
+fn get_record_returns_pending_event_without_effect() {
     let log = log();
     let cid = community_id();
     let event = log
@@ -202,36 +218,28 @@ fn get_record_returns_event_after_append() {
         .unwrap();
     assert_eq!(
         log.get_record(event.id).unwrap(),
-        Some(
-            Event {
-                id: event.id,
-                community_id: cid,
-                payload: EventPayload::Grant { count: 3 },
-            }
-            .into()
-        )
+        Some(Record {
+            event,
+            effect: None,
+        })
     );
 }
 
 #[test]
-fn get_record_returns_effect_after_append() {
+fn get_record_returns_effect_once_processed() {
     let log = log();
     let cid = community_id();
     let event = log
         .append_event(cid, EventPayload::Grant { count: 1 })
         .unwrap();
     let effect = log.append_effect(event.id, cid, vec![]).unwrap();
+    assert_eq!(event.id, effect.id);
     assert_eq!(
-        log.get_record(effect.id).unwrap(),
-        Some(
-            Effect {
-                id: effect.id,
-                event_id: event.id,
-                community_id: cid,
-                mutations: vec![],
-            }
-            .into()
-        )
+        log.get_record(event.id).unwrap(),
+        Some(Record {
+            event,
+            effect: Some(effect),
+        })
     );
 }
 
@@ -256,12 +264,11 @@ fn append_effect_and_get_effect_round_trip() {
         member_id: MemberId::new(),
         fruit: STRAWBERRY,
     }];
-    let effect = log.append_effect(event.id, cid, mutations.clone()).unwrap();
+    log.append_effect(event.id, cid, mutations.clone()).unwrap();
     assert_eq!(
         log.get_effect_for_event(event.id).unwrap(),
         Some(Effect {
-            id: effect.id,
-            event_id: event.id,
+            id: event.id,
             community_id: cid,
             mutations,
         })
@@ -310,7 +317,7 @@ fn append_effect_fails_on_duplicate_event_id() {
 // --- shared sequence ---
 
 #[test]
-fn events_and_effects_share_sequence() {
+fn events_and_effects_share_sequence_id() {
     let log = log();
     let cid = community_id();
     let event = log
@@ -318,7 +325,11 @@ fn events_and_effects_share_sequence() {
         .unwrap();
     let effect = log.append_effect(event.id, cid, vec![]).unwrap();
     assert_eq!(event.id, SequenceId::from_u64(1));
-    assert_eq!(effect.id, SequenceId::from_u64(2));
+    assert_eq!(effect.id, SequenceId::from_u64(1));
+    let event2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    assert_eq!(event2.id, SequenceId::from_u64(2));
 }
 
 // --- get_latest_records includes effects ---
@@ -331,8 +342,29 @@ fn get_latest_records_includes_effects() {
         .append_event(cid, EventPayload::Grant { count: 1 })
         .unwrap();
     let effect = log.append_effect(event.id, cid, vec![]).unwrap();
-    let records = log.get_latest_records(cid, 10).unwrap();
-    assert_eq!(records, vec![effect.into(), event.into()]);
+    assert_eq!(
+        log.get_latest_records(cid, 10).unwrap(),
+        vec![Record {
+            event,
+            effect: Some(effect),
+        }]
+    );
+}
+
+#[test]
+fn get_latest_records_pending_event_has_none_effect() {
+    let log = log();
+    let cid = community_id();
+    let event = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    assert_eq!(
+        log.get_latest_records(cid, 10).unwrap(),
+        vec![Record {
+            event,
+            effect: None,
+        }]
+    );
 }
 
 // --- get_latest_events ---
@@ -442,7 +474,10 @@ fn ref_delegates_get_record() {
     let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
     assert_eq!(
         via_provider_get_record(&log, event.id).unwrap(),
-        Some(event.into())
+        Some(Record {
+            event,
+            effect: None,
+        })
     );
 }
 
@@ -477,7 +512,10 @@ fn ref_delegates_get_latest_events() {
     let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
     assert_eq!(
         via_provider_get_latest_records(&log, cid, 5).unwrap(),
-        vec![event.into()]
+        vec![Record {
+            event,
+            effect: None,
+        }]
     );
 }
 
@@ -488,7 +526,10 @@ fn ref_delegates_append_event() {
     let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
     assert_eq!(
         via_provider_get_record(&log, event.id).unwrap(),
-        Some(event.into())
+        Some(Record {
+            event,
+            effect: None,
+        })
     );
 }
 

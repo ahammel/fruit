@@ -16,12 +16,12 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         Self { repo }
     }
 
-    /// Returns the log entry with the given sequence ID, or `None` if not found.
+    /// Returns the log entry at `id`, or `None` if not found.
     pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
         self.repo.get_record(id)
     }
 
-    /// Returns the effect whose `event_id` matches the given ID, or `None` if not yet processed.
+    /// Returns the effect with the given ID (equal to its originating event's ID), or `None` if not yet processed.
     pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
         self.repo.get_effect_for_event(event_id)
     }
@@ -36,6 +36,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
     }
 
     /// Returns the `n` most recent records for `community_id`, sorted by sequence ID descending.
+    /// Each entry pairs the event with its computed effect, or `None` if not yet processed.
     pub fn get_latest_records(
         &self,
         community_id: CommunityId,
@@ -53,7 +54,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         self.repo.append_event(community_id, payload)
     }
 
-    /// Assigns the next sequence ID to a new effect and stores it.
+    /// Stores an effect with the same sequence ID as its originating event.
     pub fn append_effect(
         &self,
         event_id: SequenceId,

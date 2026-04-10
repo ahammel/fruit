@@ -348,7 +348,7 @@ fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n:
         return;
     }
     for record in &records {
-        println!("[{}] {:#?}", record.sequence_id(), record)
+        println!("[{}] {:#?}", record.sequence_id(), record);
     }
 }
 
