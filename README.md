@@ -24,8 +24,9 @@ Both scores are normalised floats in `[0.0, 1.0]` (stored internally as `u16`).
 
 | Action | Effect |
 |--------|--------|
-| Hoarding fruit without gifting or burning | −personal luck |
+| Hoarding fruit without gifting or burning | −personal luck, −community luck |
 | Ostentatious gifts the recipient could not plausibly reciprocate | −personal luck |
+| Ostentatious burns that exceed what the community average could plausibly match | −personal luck |
 | Quid-pro-quo trades | −community luck |
 
 The game rewards generosity and communal contribution; it penalises status-signalling

@@ -9,8 +9,10 @@ by weighted-random selection; the weights are shaped by the member's and communi
 
 The game rewards generosity and communal contribution. Actions that raise luck:
 gifting fruit to another player (+personal luck) and burning fruit (+community luck).
-Actions that lower luck: hoarding fruit without gifting or burning (−community luck),
-ostentatious gifts (−personal luck), and quid-pro-quo trades (−community luck).
+Actions that lower luck: hoarding fruit without gifting or burning (−personal luck,
+−community luck), ostentatious actions — gifts or burns that exceed what the recipient
+or community average could plausibly match (−personal luck), and quid-pro-quo trades
+(−community luck).
 
 ---
 
