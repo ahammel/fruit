@@ -68,14 +68,14 @@ fn default_equals_new() {
 
 #[test]
 fn with_luck_sets_luck() {
-    let community = Community::new().with_luck(500);
-    assert_eq!(community.luck(), 500.0 / u16::MAX as f64);
+    let community = Community::new().with_luck(50);
+    assert_eq!(community.luck(), 50.0 / u8::MAX as f64);
 }
 
 #[test]
 fn with_luck_f64_sets_luck() {
     let community = Community::new().with_luck_f64(0.5);
-    assert!((community.luck() - 0.5).abs() < 1e-4);
+    assert!((community.luck() - 0.5).abs() < 2e-3);
 }
 
 #[test]

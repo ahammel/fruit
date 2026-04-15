@@ -65,11 +65,11 @@ pub struct Fruit {
     pub name:     &'static str,
     pub emoji:    &'static str,
     pub category: Category,
-    _rarity:      u16,         // private; access via rarity()
+    _rarity:      u8,          // private; access via rarity()
 }
 
 impl Fruit {
-    pub fn rarity(&self) -> f64  // _rarity / u16::MAX, in [0.0, 1.0]
+    pub fn rarity(&self) -> f64  // _rarity / u8::MAX, in [0.0, 1.0]
 }
 ```
 
@@ -78,14 +78,13 @@ all fields (not emoji alone), so two fruits with the same emoji but different ra
 distinct.
 
 **Fruit pool** — 26 static constants split across categories.
-Within-category rarity values are evenly spaced across the `u16` range; old `u8` values
-multiplied by 257 (since `255 × 257 = 65535 = u16::MAX`):
+Within-category rarity values are evenly spaced across the `u8` range:
 
-| Category | Count | `_rarity` values (approx, ×257 spacing) |
-|----------|-------|------------------------------------------|
-| Standard | 9 | 0, 8224, 16448, 24672, 32896, 40863, 49087, 57311, 65535 |
-| Rare | 9 | 0, 8224, 16448, 24672, 32896, 40863, 49087, 57311, 65535 |
-| Exotic | 8 | 0, 9252, 18761, 28013, 37522, 46774, 56283, 65535 |
+| Category | Count | `_rarity` values |
+|----------|-------|-------------------|
+| Standard | 9 | 0, 32, 64, 96, 128, 159, 191, 223, 255 |
+| Rare | 9 | 0, 32, 64, 96, 128, 159, 191, 223, 255 |
+| Exotic | 8 | 0, 36, 73, 109, 146, 182, 219, 255 |
 
 `FRUITS: &[Fruit]` lists all 26 constants ordered by category (Standard → Rare →
 Exotic) then ascending rarity within each category.
@@ -113,7 +112,7 @@ A multiset of fruits. Key operations:
 pub struct Member {
     pub id:           MemberId,
     pub display_name: String,
-    _luck:            u16,    // private; access via luck() / with_luck[_f64]()
+    _luck:            u8,     // private; access via luck() / with_luck[_f64]()
     pub bag:          Bag,
 }
 ```
@@ -125,14 +124,14 @@ Builders:
 | `new(display_name)` | Random ID, neutral luck (0), empty bag |
 | `with_id(MemberId)` | Override ID |
 | `with_bag(Bag)` | Override bag |
-| `with_luck(u16)` | Set raw luck |
+| `with_luck(u8)` | Set raw luck |
 | `with_luck_f64(f64)` | Set luck from normalised float; round-trip not guaranteed |
 
 Getters:
 
 | Method | Returns |
 |--------|---------|
-| `luck() -> f64` | `_luck / u16::MAX`, in `[0.0, 1.0]` |
+| `luck() -> f64` | `_luck / u8::MAX`, in `[0.0, 1.0]` |
 
 Mutation:
 
@@ -145,7 +144,7 @@ Mutation:
 ```rust
 pub struct Community {
     pub id:      CommunityId,
-    _luck:       u16,                      // private
+    _luck:       u8,                       // private
     pub members: HashMap<MemberId, Member>,
     pub version: SequenceId,               // last applied effect; zero = no effects applied
 }
@@ -157,7 +156,7 @@ Builders:
 |--------|-------------|
 | `new()` | Random ID, neutral luck, no members, version zero |
 | `with_id(CommunityId)` | Override ID |
-| `with_luck(u16)` | Set raw luck |
+| `with_luck(u8)` | Set raw luck |
 | `with_luck_f64(f64)` | Set luck from normalised float; round-trip not guaranteed |
 | `with_version(SequenceId)` | Override version; useful when reconstituting from storage |
 
@@ -165,7 +164,7 @@ Getters:
 
 | Method | Returns |
 |--------|---------|
-| `luck() -> f64` | `_luck / u16::MAX`, in `[0.0, 1.0]` |
+| `luck() -> f64` | `_luck / u8::MAX`, in `[0.0, 1.0]` |
 
 Mutation:
 
@@ -196,20 +195,20 @@ pub trait HasSequenceId {
 
 ### Luck normalisation
 
-Both `Member` and `Community` store luck as a `u16` in `[0, 65535]` but expose it as
+Both `Member` and `Community` store luck as a `u8` in `[0, 255]` but expose it as
 `f64` in `[0.0, 1.0]` via the `luck()` getter:
 
 ```
-luck() = _luck as f64 / u16::MAX as f64
+luck() = _luck as f64 / u8::MAX as f64
 ```
 
 `with_luck_f64(v)` performs the inverse:
 
 ```
-_luck = (v * u16::MAX as f64).round() as u16
+_luck = (v * u8::MAX as f64).round() as u8
 ```
 
-Round-trips are not exact because not every `f64` in `[0,1]` maps to a distinct `u16`.
+Round-trips are not exact because not every `f64` in `[0,1]` maps to a distinct `u8`.
 
 ### Event log (`event_log.rs`)
 
@@ -225,8 +224,8 @@ pub enum EventPayload {
     Grant { count: usize },
     AddMember { display_name: String },
     RemoveMember { member_id: MemberId },
-    SetCommunityLuck { luck: u16 },
-    SetMemberLuck { member_id: MemberId, luck: u16 },
+    SetCommunityLuck { luck: u8 },
+    SetMemberLuck { member_id: MemberId, luck: u8 },
 }
 
 pub struct Event {
@@ -239,8 +238,8 @@ pub enum StateMutation {
     AddFruitToMember { member_id: MemberId, fruit: Fruit },
     AddMember { member: Member },
     RemoveMember { member_id: MemberId },
-    SetCommunityLuck { luck: u16 },
-    SetMemberLuck { member_id: MemberId, luck: u16 },
+    SetCommunityLuck { luck: u8 },
+    SetMemberLuck { member_id: MemberId, luck: u8 },
 }
 
 pub struct Effect {
@@ -473,8 +472,8 @@ design: shared ID sequence, data model, processing flow, and interleaving behavi
 
 | Score | Storage | Getter return | Setter |
 |-------|---------|---------------|--------|
-| Rarity | `u16` (`_rarity`) | `f64` via `u16::MAX` | struct literal only |
-| Luck | `u16` (`_luck`) | `f64` via `u16::MAX` | `with_luck(u16)` / `with_luck_f64(f64)` |
+| Rarity | `u8` (`_rarity`) | `f64` via `u8::MAX` | struct literal only |
+| Luck | `u8` (`_luck`) | `f64` via `u8::MAX` | `with_luck(u8)` / `with_luck_f64(f64)` |
 
 Private fields are prefixed `_` to signal that access should go through the getter.
 Round-trips through `with_luck_f64` → `luck()` are approximate, not exact; this is

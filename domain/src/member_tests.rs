@@ -39,12 +39,12 @@ fn member_id_as_uuid_roundtrips() {
 
 #[test]
 fn with_luck_sets_luck() {
-    let member = Member::new("Alice").with_luck(500);
-    assert_eq!(member.luck(), 500.0 / u16::MAX as f64);
+    let member = Member::new("Alice").with_luck(50);
+    assert_eq!(member.luck(), 50.0 / u8::MAX as f64);
 }
 
 #[test]
 fn with_luck_f64_sets_luck() {
     let member = Member::new("Alice").with_luck_f64(0.5);
-    assert!((member.luck() - 0.5).abs() < 1e-4);
+    assert!((member.luck() - 0.5).abs() < 2e-3);
 }

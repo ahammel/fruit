@@ -171,10 +171,10 @@ fn apply_set_community_luck_updates_luck() {
         id: SequenceId::from_u64(2),
 
         community_id: community.id,
-        mutations: vec![StateMutation::SetCommunityLuck { luck: 1000 }],
+        mutations: vec![StateMutation::SetCommunityLuck { luck: 100 }],
     };
     effect.apply(&mut community);
-    assert_eq!(community.luck(), 1000.0 / u16::MAX as f64);
+    assert_eq!(community.luck(), 100.0 / u8::MAX as f64);
 }
 
 #[test]
@@ -186,14 +186,11 @@ fn apply_set_member_luck_updates_member_luck() {
         community_id: community.id,
         mutations: vec![StateMutation::SetMemberLuck {
             member_id: alice_id,
-            luck: 2000,
+            luck: 200,
         }],
     };
     effect.apply(&mut community);
-    assert_eq!(
-        community.members[&alice_id].luck(),
-        2000.0 / u16::MAX as f64
-    );
+    assert_eq!(community.members[&alice_id].luck(), 200.0 / u8::MAX as f64);
 }
 
 #[test]
@@ -207,7 +204,7 @@ fn apply_set_member_luck_skips_absent_member() {
         community_id: community.id,
         mutations: vec![StateMutation::SetMemberLuck {
             member_id: absent_id,
-            luck: 500,
+            luck: 50,
         }],
     };
     effect.apply(&mut community);

@@ -116,7 +116,7 @@ fn repo_get_latest_returns_highest_version() {
     let v0 = community.version;
     repo.put(community).unwrap();
     let v1 = SequenceId::from_u64(1);
-    let newer = Community::new().with_id(id).with_luck(500).with_version(v1);
+    let newer = Community::new().with_id(id).with_luck(50).with_version(v1);
     repo.put(newer.clone()).unwrap();
     assert_eq!(repo.get_latest(id).unwrap(), Some(newer));
     assert!(repo.get(id, v0).unwrap().is_some());

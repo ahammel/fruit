@@ -71,10 +71,10 @@ pub enum EventPayload {
     AddMember { display_name: String },
     /// Remove the member identified by `member_id` from the community.
     RemoveMember { member_id: MemberId },
-    /// Set the community's luck to `luck` (raw `u16`).
-    SetCommunityLuck { luck: u16 },
-    /// Set the luck of the member identified by `member_id` to `luck` (raw `u16`).
-    SetMemberLuck { member_id: MemberId, luck: u16 },
+    /// Set the community's luck to `luck` (raw `u8`).
+    SetCommunityLuck { luck: u8 },
+    /// Set the luck of the member identified by `member_id` to `luck` (raw `u8`).
+    SetMemberLuck { member_id: MemberId, luck: u8 },
     /// Transfer one instance of `fruit` from the member `sender_id` to `recipient_id`.
     Gift {
         /// The member giving the fruit.
@@ -123,10 +123,10 @@ pub enum StateMutation {
     AddMember { member: Member },
     /// Remove the member identified by `member_id` from the community.
     RemoveMember { member_id: MemberId },
-    /// Set the community's luck to `luck` (raw `u16`).
-    SetCommunityLuck { luck: u16 },
-    /// Set the luck of the member identified by `member_id` to `luck` (raw `u16`).
-    SetMemberLuck { member_id: MemberId, luck: u16 },
+    /// Set the community's luck to `luck` (raw `u8`).
+    SetCommunityLuck { luck: u8 },
+    /// Set the luck of the member identified by `member_id` to `luck` (raw `u8`).
+    SetMemberLuck { member_id: MemberId, luck: u8 },
 }
 
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain

@@ -305,7 +305,7 @@ fn cmd_luck(
             return;
         }
     };
-    let luck = (luck_f64 * u16::MAX as f64).round() as u16;
+    let luck = (luck_f64 * u8::MAX as f64).round() as u8;
 
     let community = fetch(store, id);
 
