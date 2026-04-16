@@ -342,7 +342,12 @@ fn cmd_luck(
 }
 
 fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n: usize) {
-    let records = event_log.get_latest_records(id, n).unwrap();
+    let records = event_log
+        .get_records_before()
+        .community_id(id)
+        .limit(n)
+        .call()
+        .unwrap();
     if records.is_empty() {
         println!("no events recorded");
         return;

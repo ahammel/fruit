@@ -14,19 +14,29 @@ pub trait EventLogProvider {
     /// or `None` if the event has not yet been processed.
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
 
-    /// Returns all effects for `community_id` whose sequence ID is strictly greater
-    /// than `after`, sorted by sequence ID ascending.
+    /// Returns up to `limit` effects for `community_id` whose sequence ID is strictly
+    /// greater than `after`, sorted by sequence ID ascending.
+    ///
+    /// `after` acts as a keyset cursor: pass the sequence ID of the last effect you
+    /// already have. To start from the beginning, pass [`SequenceId::zero()`].
     fn get_effects_after(
         &self,
         community_id: CommunityId,
+        limit: usize,
         after: SequenceId,
     ) -> Result<Vec<Effect>, Error>;
 
-    /// Returns the `n` most recent events for `community_id`, sorted by sequence ID
-    /// descending. Each entry pairs the event with its computed effect, or `None` if
-    /// the event has not yet been processed.
-    fn get_latest_records(&self, community_id: CommunityId, n: usize)
-        -> Result<Vec<Record>, Error>;
+    /// Returns up to `limit` records for `community_id` whose sequence ID is strictly less
+    /// than `before`, sorted by sequence ID descending. Each entry pairs the event with
+    /// its computed effect, or `None` if the event has not yet been processed.
+    ///
+    /// `before` is a keyset cursor; pass `None` to start from the most recent record.
+    fn get_records_before(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+        before: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error>;
 }
 
 /// Write port for the event and effect log.

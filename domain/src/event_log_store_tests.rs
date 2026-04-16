@@ -20,10 +20,20 @@ impl EventLogProvider for ErrorRepo {
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
         Err(err())
     }
-    fn get_effects_after(&self, _: CommunityId, _: SequenceId) -> Result<Vec<Effect>, Error> {
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
         Err(err())
     }
-    fn get_latest_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
         Err(err())
     }
 }
@@ -61,13 +71,21 @@ fn get_effect_for_event_propagates_error() {
 #[test]
 fn get_effects_after_propagates_error() {
     assert!(store()
-        .get_effects_after(CommunityId::new(), SequenceId::zero())
+        .get_effects_after()
+        .community_id(CommunityId::new())
+        .limit(10)
+        .call()
         .is_err());
 }
 
 #[test]
-fn get_latest_records_propagates_error() {
-    assert!(store().get_latest_records(CommunityId::new(), 5).is_err());
+fn get_records_before_propagates_error() {
+    assert!(store()
+        .get_records_before()
+        .community_id(CommunityId::new())
+        .limit(5)
+        .call()
+        .is_err());
 }
 
 #[test]

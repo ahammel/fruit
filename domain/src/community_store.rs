@@ -6,6 +6,9 @@ use crate::{
     event_log_repo::EventLogProvider,
 };
 
+/// Maximum number of effects fetched per page when advancing a community snapshot.
+pub const EFFECTS_PAGE_SIZE: usize = 1000;
+
 /// Reads and writes communities via a [`CommunityRepo`] and [`EventLogProvider`].
 pub struct CommunityStore<CR: CommunityRepo, ELP: EventLogProvider> {
     community_repo: CR,
@@ -40,13 +43,22 @@ impl<CR: CommunityRepo, ELP: EventLogProvider> CommunityStore<CR, ELP> {
         let Some(mut community) = self.community_repo.get_latest(id)? else {
             return Ok(None);
         };
-        let unapplied = self
-            .event_log_provider
-            .get_effects_after(id, community.version)?;
-        if unapplied.is_empty() {
+        let initial_version = community.version;
+        loop {
+            let batch = self.event_log_provider.get_effects_after(
+                id,
+                EFFECTS_PAGE_SIZE,
+                community.version,
+            )?;
+            let done = batch.len() < EFFECTS_PAGE_SIZE;
+            community.apply_effects(batch);
+            if done {
+                break;
+            }
+        }
+        if community.version == initial_version {
             return Ok(Some(community));
         }
-        community.apply_effects(unapplied);
         let saved = self.community_repo.put(community)?;
         Ok(Some(saved))
     }

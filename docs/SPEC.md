@@ -352,8 +352,8 @@ communities are always advanced by appending a new version via `put`.
 pub trait EventLogProvider {
     fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error>;
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
-    fn get_effects_after(&self, community_id: CommunityId, after: SequenceId) -> Result<Vec<Effect>, Error>;
-    fn get_latest_records(&self, community_id: CommunityId, n: usize) -> Result<Vec<Record>, Error>;
+    fn get_effects_after(&self, community_id: CommunityId, limit: usize, after: SequenceId) -> Result<Vec<Effect>, Error>;
+    fn get_records_before(&self, community_id: CommunityId, limit: usize, before: Option<SequenceId>) -> Result<Vec<Record>, Error>;
 }
 
 pub trait EventLogPersistor {
@@ -366,10 +366,12 @@ pub trait EventLogPersistor {
 pub trait EventLogRepo: EventLogProvider + EventLogPersistor {}
 ```
 
-`get_effects_after` returns all effects for `community_id` whose sequence ID is
-strictly greater than `after`, sorted ascending. Because events and effects share IDs,
-this is equivalent to "all effects for events after the given position." Useful for
-replaying effects since a known snapshot.
+`get_effects_after` returns up to `limit` effects for `community_id` whose sequence ID
+is strictly greater than `after`, sorted ascending. `after` acts as a keyset cursor;
+pass `SequenceId::zero()` to start from the beginning. If the returned slice length
+equals `limit`, there may be more results — callers should paginate by using the last
+returned effect's ID as the next `after`. Useful for replaying effects since a known
+snapshot.
 
 ### Store wrappers (`community_store.rs`, `event_log_store.rs`)
 

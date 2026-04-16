@@ -68,6 +68,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
     fn get_effects_after(
         &self,
         community_id: CommunityId,
+        limit: usize,
         after: SequenceId,
     ) -> Result<Vec<Effect>, Error> {
         let mut effects: Vec<Effect> = self
@@ -78,13 +79,15 @@ impl EventLogProvider for InMemoryEventLogRepo {
             .cloned()
             .collect();
         effects.sort_by_key(|e| e.id);
+        effects.truncate(limit);
         Ok(effects)
     }
 
-    fn get_latest_records(
+    fn get_records_before(
         &self,
         community_id: CommunityId,
-        n: usize,
+        limit: usize,
+        before: Option<SequenceId>,
     ) -> Result<Vec<Record>, Error> {
         let effects = self.effects.read()?;
         let mut records: Vec<Record> = self
@@ -92,13 +95,14 @@ impl EventLogProvider for InMemoryEventLogRepo {
             .read()?
             .values()
             .filter(|e| e.community_id == community_id)
+            .filter(|e| before.map_or(true, |cursor| e.id < cursor))
             .map(|e| Record {
                 effect: effects.get(&e.id).cloned(),
                 event: e.clone(),
             })
             .collect();
         records.sort_by_key(|e| std::cmp::Reverse(e.sequence_id()));
-        records.truncate(n);
+        records.truncate(limit);
         Ok(records)
     }
 }
@@ -165,17 +169,19 @@ impl EventLogProvider for &InMemoryEventLogRepo {
     fn get_effects_after(
         &self,
         community_id: CommunityId,
+        limit: usize,
         after: SequenceId,
     ) -> Result<Vec<Effect>, Error> {
-        (*self).get_effects_after(community_id, after)
+        (*self).get_effects_after(community_id, limit, after)
     }
 
-    fn get_latest_records(
+    fn get_records_before(
         &self,
         community_id: CommunityId,
-        n: usize,
+        limit: usize,
+        before: Option<SequenceId>,
     ) -> Result<Vec<Record>, Error> {
-        (*self).get_latest_records(community_id, n)
+        (*self).get_records_before(community_id, limit, before)
     }
 }
 

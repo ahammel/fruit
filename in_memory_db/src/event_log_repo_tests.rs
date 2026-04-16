@@ -136,7 +136,10 @@ fn get_effects_after_excludes_effect_at_exact_boundary() {
         .append_event(cid, EventPayload::Grant { count: 2 })
         .unwrap();
     let eff2 = log.append_effect(e2.id, cid, vec![]).unwrap();
-    assert_eq!(log.get_effects_after(cid, eff1.id).unwrap(), vec![eff2]);
+    assert_eq!(
+        log.get_effects_after(cid, 100, eff1.id).unwrap(),
+        vec![eff2]
+    );
 }
 
 #[test]
@@ -154,7 +157,8 @@ fn get_effects_after_filters_by_community_id() {
         .unwrap();
     log.append_effect(e2.id, cid2, vec![]).unwrap();
     assert_eq!(
-        log.get_effects_after(cid1, SequenceId::zero()).unwrap(),
+        log.get_effects_after(cid1, 100, SequenceId::zero())
+            .unwrap(),
         vec![eff1]
     );
 }
@@ -171,7 +175,7 @@ fn get_effects_after_sorts_multiple_effects_ascending() {
         .unwrap();
     let eff1 = log.append_effect(e1.id, cid, vec![]).unwrap();
     let eff2 = log.append_effect(e2.id, cid, vec![]).unwrap();
-    let effects = log.get_effects_after(cid, SequenceId::zero()).unwrap();
+    let effects = log.get_effects_after(cid, 100, SequenceId::zero()).unwrap();
     assert_eq!(effects, vec![eff1, eff2]);
 }
 
@@ -183,28 +187,47 @@ fn get_effects_after_returns_err_when_lock_is_poisoned() {
         effects: poisoned_effect_map(),
     };
     assert!(log
-        .get_effects_after(community_id(), SequenceId::zero())
+        .get_effects_after(community_id(), 100, SequenceId::zero())
         .is_err());
 }
 
 #[test]
-fn get_latest_events_returns_err_when_events_lock_is_poisoned() {
+fn get_effects_after_respects_limit() {
+    let log = log();
+    let cid = community_id();
+    let e1 = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let e2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    let eff1 = log.append_effect(e1.id, cid, vec![]).unwrap();
+    log.append_effect(e2.id, cid, vec![]).unwrap();
+    // limit=1 should return only the first effect
+    assert_eq!(
+        log.get_effects_after(cid, 1, SequenceId::zero()).unwrap(),
+        vec![eff1]
+    );
+}
+
+#[test]
+fn get_records_before_returns_err_when_events_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: poisoned_event_map(),
         effects: RwLock::new(HashMap::new()),
     };
-    assert!(log.get_latest_records(community_id(), 5).is_err());
+    assert!(log.get_records_before(community_id(), 5, None).is_err());
 }
 
 #[test]
-fn get_latest_events_returns_err_when_effects_lock_is_poisoned() {
+fn get_records_before_returns_err_when_effects_lock_is_poisoned() {
     let log = InMemoryEventLogRepo {
         sequence: AtomicU64::new(0),
         events: RwLock::new(HashMap::new()),
         effects: poisoned_effect_map(),
     };
-    assert!(log.get_latest_records(community_id(), 5).is_err());
+    assert!(log.get_records_before(community_id(), 5, None).is_err());
 }
 
 // --- record round-trips ---
@@ -332,10 +355,10 @@ fn events_and_effects_share_sequence_id() {
     assert_eq!(event2.id, SequenceId::from_u64(2));
 }
 
-// --- get_latest_records includes effects ---
+// --- get_records_before ---
 
 #[test]
-fn get_latest_records_includes_effects() {
+fn get_records_before_includes_effects() {
     let log = log();
     let cid = community_id();
     let event = log
@@ -343,7 +366,7 @@ fn get_latest_records_includes_effects() {
         .unwrap();
     let effect = log.append_effect(event.id, cid, vec![]).unwrap();
     assert_eq!(
-        log.get_latest_records(cid, 10).unwrap(),
+        log.get_records_before(cid, 10, None).unwrap(),
         vec![Record {
             event,
             effect: Some(effect),
@@ -352,14 +375,14 @@ fn get_latest_records_includes_effects() {
 }
 
 #[test]
-fn get_latest_records_pending_event_has_none_effect() {
+fn get_records_before_pending_event_has_none_effect() {
     let log = log();
     let cid = community_id();
     let event = log
         .append_event(cid, EventPayload::Grant { count: 1 })
         .unwrap();
     assert_eq!(
-        log.get_latest_records(cid, 10).unwrap(),
+        log.get_records_before(cid, 10, None).unwrap(),
         vec![Record {
             event,
             effect: None,
@@ -367,34 +390,32 @@ fn get_latest_records_pending_event_has_none_effect() {
     );
 }
 
-// --- get_latest_events ---
-
 #[test]
-fn get_latest_events_returns_n_most_recent_descending() {
+fn get_records_before_returns_n_most_recent_descending() {
     let log = log();
     let cid = community_id();
     for i in 1..=5 {
         log.append_event(cid, EventPayload::Grant { count: i })
             .unwrap();
     }
-    let events = log.get_latest_records(cid, 3).unwrap();
-    assert_eq!(events.len(), 3);
-    assert!(events
+    let records = log.get_records_before(cid, 3, None).unwrap();
+    assert_eq!(records.len(), 3);
+    assert!(records
         .windows(2)
         .all(|w| w[0].sequence_id() > w[1].sequence_id()));
 }
 
 #[test]
-fn get_latest_events_returns_fewer_when_not_enough() {
+fn get_records_before_returns_fewer_when_not_enough() {
     let log = log();
     let cid = community_id();
     log.append_event(cid, EventPayload::Grant { count: 1 })
         .unwrap();
-    assert_eq!(log.get_latest_records(cid, 10).unwrap().len(), 1);
+    assert_eq!(log.get_records_before(cid, 10, None).unwrap().len(), 1);
 }
 
 #[test]
-fn get_latest_events_filters_by_community() {
+fn get_records_before_filters_by_community() {
     let log = log();
     let cid1 = community_id();
     let cid2 = community_id();
@@ -402,16 +423,31 @@ fn get_latest_events_filters_by_community() {
         .unwrap();
     log.append_event(cid2, EventPayload::Grant { count: 1 })
         .unwrap();
-    let events = log.get_latest_records(cid1, 10).unwrap();
-    assert!(events.iter().all(|e| e.community_id() == cid1));
+    let records = log.get_records_before(cid1, 10, None).unwrap();
+    assert!(records.iter().all(|e| e.community_id() == cid1));
 }
 
 #[test]
-fn get_latest_events_returns_empty_when_none_exist() {
+fn get_records_before_returns_empty_when_none_exist() {
     assert!(log()
-        .get_latest_records(community_id(), 5)
+        .get_records_before(community_id(), 5, None)
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn get_records_before_excludes_record_at_exact_cursor() {
+    let log = log();
+    let cid = community_id();
+    for _ in 0..3 {
+        log.append_event(cid, EventPayload::Grant { count: 1 })
+            .unwrap();
+    }
+    // cursor == id of 3rd event; result must not include it
+    let cursor = SequenceId::from_u64(3);
+    let records = log.get_records_before(cid, 10, Some(cursor)).unwrap();
+    assert_eq!(records.len(), 2);
+    assert!(records.iter().all(|r| r.sequence_id() < cursor));
 }
 
 // --- &InMemoryEventLogRepo delegation ---
@@ -437,17 +473,19 @@ fn via_provider_get_effect_for_event<T: EventLogProvider>(
 fn via_provider_get_effects_after<T: EventLogProvider>(
     p: T,
     cid: CommunityId,
+    limit: usize,
     after: SequenceId,
 ) -> Result<Vec<Effect>, Error> {
-    p.get_effects_after(cid, after)
+    p.get_effects_after(cid, limit, after)
 }
 
-fn via_provider_get_latest_records<T: EventLogProvider>(
+fn via_provider_get_records_before<T: EventLogProvider>(
     p: T,
     cid: CommunityId,
-    n: usize,
+    limit: usize,
+    before: Option<SequenceId>,
 ) -> Result<Vec<Record>, Error> {
-    p.get_latest_records(cid, n)
+    p.get_records_before(cid, limit, before)
 }
 
 fn via_persistor_append_event<T: EventLogPersistor>(
@@ -500,18 +538,18 @@ fn ref_delegates_get_effects_after() {
     let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
     let effect = via_persistor_append_effect(&log, event.id, cid, vec![]).unwrap();
     assert_eq!(
-        via_provider_get_effects_after(&log, cid, SequenceId::zero()).unwrap(),
+        via_provider_get_effects_after(&log, cid, 100, SequenceId::zero()).unwrap(),
         vec![effect]
     );
 }
 
 #[test]
-fn ref_delegates_get_latest_events() {
+fn ref_delegates_get_records_before() {
     let log = log();
     let cid = community_id();
     let event = via_persistor_append_event(&log, cid, EventPayload::Grant { count: 1 }).unwrap();
     assert_eq!(
-        via_provider_get_latest_records(&log, cid, 5).unwrap(),
+        via_provider_get_records_before(&log, cid, 5, None).unwrap(),
         vec![Record {
             event,
             effect: None,

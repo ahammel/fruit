@@ -1,4 +1,4 @@
-use std::io;
+use std::{cell::Cell, io};
 
 use super::*;
 use crate::{
@@ -66,10 +66,20 @@ impl EventLogProvider for ErrorEventLog {
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
         Err(err())
     }
-    fn get_effects_after(&self, _: CommunityId, _: SequenceId) -> Result<Vec<Effect>, Error> {
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
         Err(err())
     }
-    fn get_latest_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
         Err(err())
     }
 }
@@ -106,10 +116,20 @@ impl EventLogProvider for EmptyEffectsEventLog {
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
         Ok(None)
     }
-    fn get_effects_after(&self, _: CommunityId, _: SequenceId) -> Result<Vec<Effect>, Error> {
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
         Ok(vec![])
     }
-    fn get_latest_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
         Ok(vec![])
     }
 }
@@ -127,10 +147,20 @@ impl EventLogProvider for OneEffectEventLog {
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
         Ok(None)
     }
-    fn get_effects_after(&self, _: CommunityId, _: SequenceId) -> Result<Vec<Effect>, Error> {
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
         Ok(vec![self.effect.clone()])
     }
-    fn get_latest_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
         Ok(vec![])
     }
 }
@@ -197,8 +227,8 @@ fn get_latest_returns_none_when_community_not_found() {
 
 #[test]
 fn get_latest_returns_community_when_no_pending_effects() {
-    // Covers the `if unapplied.is_empty() { return Ok(Some(community)) }` branch
-    // for the GetOkPutErrorRepo + EmptyEffectsEventLog monomorphization.
+    // Covers the `community.version == initial_version` early-return branch: no
+    // effects are returned so version never advances and we skip the put.
     let community = Community::new();
     let id = community.id;
     let store = CommunityStore::new(
@@ -208,4 +238,91 @@ fn get_latest_returns_community_when_no_pending_effects() {
         EmptyEffectsEventLog,
     );
     assert_eq!(store.get_latest(id).unwrap(), Some(community));
+}
+
+// --- mock repo that returns one community and accepts puts ---
+
+struct GetOkPutOkRepo {
+    community: Community,
+}
+
+impl CommunityProvider for GetOkPutOkRepo {
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+        Ok(None)
+    }
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+        Ok(Some(self.community.clone()))
+    }
+}
+
+impl CommunityPersistor for GetOkPutOkRepo {
+    fn put(&self, c: Community) -> Result<Community, Error> {
+        Ok(c)
+    }
+}
+
+impl CommunityRepo for GetOkPutOkRepo {}
+
+// --- mock event log that returns exactly EFFECTS_PAGE_SIZE effects on the first
+//     call, then returns empty on subsequent calls ---
+
+struct MultiPageEffectsEventLog {
+    effects: Vec<Effect>,
+    call_count: Cell<usize>,
+}
+
+impl MultiPageEffectsEventLog {
+    fn new(community_id: CommunityId) -> Self {
+        let effects = (1..=EFFECTS_PAGE_SIZE as u64)
+            .map(|i| Effect {
+                id: SequenceId::from_u64(i),
+                community_id,
+                mutations: vec![],
+            })
+            .collect();
+        Self {
+            effects,
+            call_count: Cell::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for MultiPageEffectsEventLog {
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
+        let n = self.call_count.get();
+        self.call_count.set(n + 1);
+        Ok(if n == 0 { self.effects.clone() } else { vec![] })
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn get_latest_paginates_through_all_effects() {
+    // Covers the loop-continues branch: the first page is exactly EFFECTS_PAGE_SIZE,
+    // so the loop runs a second time before breaking on the empty second page.
+    let community = Community::new();
+    let id = community.id;
+    let event_log = MultiPageEffectsEventLog::new(id);
+    let expected_version = SequenceId::from_u64(EFFECTS_PAGE_SIZE as u64);
+    let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
+    let result = store.get_latest(id).unwrap().unwrap();
+    assert_eq!(result.version, expected_version);
 }

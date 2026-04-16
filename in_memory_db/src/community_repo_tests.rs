@@ -1,8 +1,10 @@
 use super::*;
 use crate::event_log_repo::InMemoryEventLogRepo;
 use fruit_domain::{
-    community_store::CommunityStore, event_log::EventPayload, event_log_repo::EventLogPersistor,
-    id::UuidIdentifier,
+    community_store::{CommunityStore, EFFECTS_PAGE_SIZE},
+    event_log::EventPayload,
+    event_log_repo::EventLogPersistor,
+    id::{IntegerIdentifier, UuidIdentifier},
 };
 
 fn repo() -> InMemoryCommunityRepo {
@@ -235,4 +237,27 @@ fn store_get_latest_applies_multiple_pending_effects() {
     let latest = store.get_latest(id).unwrap().unwrap();
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
     assert_eq!(latest.version, grant_event.id); // effect and event share the same ID
+}
+
+#[test]
+fn store_get_latest_paginates_through_effects_exceeding_page_size() {
+    // Appends EFFECTS_PAGE_SIZE + 1 effects so get_latest must loop a second time,
+    // covering the loop-continues branch in the InMemory monomorphization.
+    use fruit_domain::event_log::SequenceId;
+
+    let community = Community::new();
+    let id = community.id;
+    let event_log = InMemoryEventLogRepo::new();
+    let n = EFFECTS_PAGE_SIZE + 1;
+    for _ in 0..n {
+        let event = event_log
+            .append_event(id, EventPayload::Grant { count: 0 })
+            .unwrap();
+        event_log.append_effect(event.id, id, vec![]).unwrap();
+    }
+    let repo = InMemoryCommunityRepo::new();
+    repo.put(community).unwrap();
+    let store = CommunityStore::new(repo, event_log);
+    let latest = store.get_latest(id).unwrap().unwrap();
+    assert_eq!(latest.version, SequenceId::from_u64(n as u64));
 }
