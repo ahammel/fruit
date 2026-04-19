@@ -6,7 +6,7 @@ use std::{
 
 #[test]
 fn from_io_error_preserves_message() {
-    let io_err = io::Error::new(io::ErrorKind::Other, "disk full");
+    let io_err = io::Error::other("disk full");
     let err = Error::from(io_err);
     assert!(err.to_string().contains("disk full"));
     assert!(StdError::source(&err).is_some());

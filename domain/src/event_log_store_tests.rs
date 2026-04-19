@@ -8,7 +8,7 @@ use crate::{
 };
 
 fn err() -> Error {
-    io::Error::new(io::ErrorKind::Other, "test error").into()
+    io::Error::other("test error").into()
 }
 
 struct ErrorRepo;

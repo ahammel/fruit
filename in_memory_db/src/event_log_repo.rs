@@ -95,7 +95,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
             .read()?
             .values()
             .filter(|e| e.community_id == community_id)
-            .filter(|e| before.map_or(true, |cursor| e.id < cursor))
+            .filter(|e| before.is_none_or(|cursor| e.id < cursor))
             .map(|e| Record {
                 effect: effects.get(&e.id).cloned(),
                 event: e.clone(),
