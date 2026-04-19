@@ -2,6 +2,7 @@ CARGO_MUTANTS_VERSION := $(shell cargo metadata --no-deps --format-version 1 | p
 CARGO_MUTANTS_URL := https://github.com/sourcefrog/cargo-mutants/releases/download/v$(CARGO_MUTANTS_VERSION)/cargo-mutants-x86_64-apple-darwin.tar.gz
 
 MUTANTS_FILES = mutants.out mutants.old.out
+TARPAULIN_REPORT = tarpaulin-report.html
 
 .PHONY: p pretty pc pretty-check l lint t ta test-all b build r run br build-release c check tc test-coverage tcr test-coverage-report tm test-mutation w watch clean
 
@@ -36,15 +37,19 @@ br build-release:
 	cargo build --release --all
 
 tc test-coverage:
-	rustup run stable cargo llvm-cov --all \
-		--ignore-filename-regex="(command_line_service|_tests\.rs)" \
-		--fail-under-lines 100 \
-		--fail-under-functions 100
+	cargo tarpaulin \
+		--packages fruit-domain fruit-in-memory-db \
+		--exclude-files "*_tests.rs" \
+		--fail-under 100
 
-tcr test-coverage-report:
-	rustup run stable cargo llvm-cov --all \
-		--ignore-filename-regex="(command_line_service|_tests\.rs)" \
-		--html --open
+$(TARPAULIN_REPORT):
+	cargo tarpaulin \
+		--packages fruit-domain fruit-in-memory-db \
+		--exclude-files "*_tests.rs" \
+		--out Html
+
+tcr test-coverage-report: $(TARPAULIN_REPORT)
+	open $(TARPAULIN_REPORT)
 
 bin/cargo-mutants:
 	mkdir -p bin
@@ -63,4 +68,5 @@ w watch:
 clean:
 	cargo clean
 	rm -rf $(MUTANTS_FILES)
+	rm -rf $(TARPAULIN_REPORT)
 	rm -rf bin/

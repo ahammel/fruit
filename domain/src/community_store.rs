@@ -44,17 +44,14 @@ impl<CR: CommunityRepo, ELP: EventLogProvider> CommunityStore<CR, ELP> {
             return Ok(None);
         };
         let initial_version = community.version;
-        loop {
-            let batch = self.event_log_provider.get_effects_after(
-                id,
-                EFFECTS_PAGE_SIZE,
-                community.version,
-            )?;
-            let done = batch.len() < EFFECTS_PAGE_SIZE;
+        let mut done = false;
+        while !done {
+            let version = community.version;
+            let batch =
+                self.event_log_provider
+                    .get_effects_after(id, EFFECTS_PAGE_SIZE, version)?;
+            done = batch.len() < EFFECTS_PAGE_SIZE;
             community.apply_effects(batch);
-            if done {
-                break;
-            }
         }
         if community.version == initial_version {
             return Ok(Some(community));
