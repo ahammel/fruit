@@ -1,26 +1,18 @@
 use std::collections::HashMap;
 
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
 use uuid::Uuid;
 
 use crate::{
     event_log::{Effect, SequenceId},
-    id::{IntegerIdentifier, UuidIdentifier},
     member::{Member, MemberId},
 };
 
 /// Typed identifier for a [`Community`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(UuidIdentifier)]
+#[allowed_values(all)]
 pub struct CommunityId(Uuid);
-
-impl UuidIdentifier for CommunityId {
-    fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    fn as_uuid(&self) -> Uuid {
-        self.0
-    }
-}
 
 /// Marker trait for types that belong to a [`Community`].
 pub trait HasCommunityId {

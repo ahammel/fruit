@@ -1,11 +1,12 @@
 use bon::bon;
 
+use newtype_ids::IntegerIdentifier;
+
 use crate::{
     community::CommunityId,
     error::Error,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
     event_log_repo::EventLogRepo,
-    id::IntegerIdentifier,
 };
 
 /// Reads and writes the event and effect log via an [`EventLogRepo`].

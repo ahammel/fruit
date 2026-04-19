@@ -10,13 +10,12 @@ use crate::{
     event_log::SequenceId,
     fruit::{GRAPES, MANGO, OLIVE, STRAWBERRY},
     fruit_weights::FruitWeights,
-    id::IntegerIdentifier,
     member::Member,
 };
 
 fn apply_grant(community: &mut Community, mutations: Vec<StateMutation>) {
     Effect {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
         community_id: community.id,
         mutations,
     }

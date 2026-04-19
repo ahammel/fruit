@@ -1,5 +1,4 @@
 use super::*;
-use crate::id::UuidIdentifier;
 
 #[test]
 fn community_id_returns_id() {
@@ -80,8 +79,7 @@ fn with_luck_f64_sets_luck() {
 
 #[test]
 fn with_version_sets_version() {
-    use crate::id::IntegerIdentifier;
-    let v = SequenceId::from_u64(42);
+    let v = SequenceId::new(42);
     assert_eq!(Community::new().with_version(v).version, v);
 }
 
@@ -90,7 +88,6 @@ fn apply_effects_applies_mutations_and_advances_version() {
     use crate::{
         event_log::{Effect, StateMutation},
         fruit::STRAWBERRY,
-        id::IntegerIdentifier,
     };
 
     let mut community = Community::new();
@@ -98,8 +95,8 @@ fn apply_effects_applies_mutations_and_advances_version() {
     let alice_id = member.id;
     community.add_member(member);
 
-    let v1 = SequenceId::from_u64(1);
-    let v2 = SequenceId::from_u64(2);
+    let v1 = SequenceId::new(1);
+    let v2 = SequenceId::new(2);
     let effects = vec![
         Effect {
             id: v1,

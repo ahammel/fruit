@@ -14,7 +14,6 @@ use fruit_domain::{
         Effect, Event, EventPayload, HasSequenceId as _, Record, SequenceId, StateMutation,
     },
     event_log_repo::{EventLogPersistor, EventLogProvider, EventLogRepo},
-    id::IntegerIdentifier,
 };
 
 /// In-memory implementation of [`EventLogRepo`].
@@ -41,7 +40,7 @@ impl InMemoryEventLogRepo {
     }
 
     fn next_id(&self) -> SequenceId {
-        SequenceId::from_u64(self.sequence.fetch_add(1, Ordering::SeqCst) + 1)
+        SequenceId::new(self.sequence.fetch_add(1, Ordering::SeqCst) + 1)
     }
 }
 

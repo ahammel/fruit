@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 fruit-domain = { path = "../domain" }
+newtype-ids = "0.1"
+newtype-ids-uuid = "0.1"

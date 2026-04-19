@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 bon = "2.3"
+newtype-ids = "0.1"
+newtype-ids-uuid = "0.1"
 rand = "0.8"
 uuid = { version = "=1.11.0", features = ["v4"] }

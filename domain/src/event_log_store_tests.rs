@@ -1,10 +1,11 @@
 use std::io;
 
+use newtype_ids_uuid::UuidIdentifier;
+
 use super::*;
 use crate::{
     event_log::Record,
     event_log_repo::{EventLogPersistor, EventLogProvider},
-    id::{IntegerIdentifier, UuidIdentifier},
 };
 
 fn err() -> Error {

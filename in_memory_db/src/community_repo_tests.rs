@@ -4,7 +4,6 @@ use fruit_domain::{
     community_store::{CommunityStore, EFFECTS_PAGE_SIZE},
     event_log::EventPayload,
     event_log_repo::EventLogPersistor,
-    id::{IntegerIdentifier, UuidIdentifier},
 };
 
 fn repo() -> InMemoryCommunityRepo {
@@ -117,7 +116,7 @@ fn repo_get_latest_returns_highest_version() {
     let id = community.id;
     let v0 = community.version;
     repo.put(community).unwrap();
-    let v1 = SequenceId::from_u64(1);
+    let v1 = SequenceId::new(1);
     let newer = Community::new().with_id(id).with_luck(50).with_version(v1);
     repo.put(newer.clone()).unwrap();
     assert_eq!(repo.get_latest(id).unwrap(), Some(newer));
@@ -259,5 +258,5 @@ fn store_get_latest_paginates_through_effects_exceeding_page_size() {
     repo.put(community).unwrap();
     let store = CommunityStore::new(repo, event_log);
     let latest = store.get_latest(id).unwrap().unwrap();
-    assert_eq!(latest.version, SequenceId::from_u64(n as u64));
+    assert_eq!(latest.version, SequenceId::from(n as u64));
 }

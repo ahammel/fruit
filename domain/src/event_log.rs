@@ -1,9 +1,10 @@
 use std::fmt;
 
+use newtype_ids::IntegerIdentifier;
+
 use crate::{
     community::{Community, CommunityId, HasCommunityId},
     fruit::Fruit,
-    id::IntegerIdentifier,
     member::{Member, MemberId},
 };
 
@@ -11,22 +12,9 @@ use crate::{
 ///
 /// Sequence IDs start at 1 and increase monotonically. Both events and effects
 /// draw from the same counter, so their IDs are globally ordered.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(IntegerIdentifier)]
+#[allowed_values(all)]
 pub struct SequenceId(u64);
-
-impl IntegerIdentifier for SequenceId {
-    fn zero() -> Self {
-        Self(0)
-    }
-
-    fn from_u64(id: u64) -> Self {
-        Self(id)
-    }
-
-    fn as_u64(&self) -> u64 {
-        self.0
-    }
-}
 
 impl fmt::Display for SequenceId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

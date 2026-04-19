@@ -1,31 +1,33 @@
 use super::*;
 
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
+
 use crate::{
     community::{Community, CommunityId},
     fruit::STRAWBERRY,
-    id::{IntegerIdentifier, UuidIdentifier},
     member::{Member, MemberId},
 };
 
 #[test]
 fn sequence_id_as_u64_returns_inner_value() {
-    assert_eq!(SequenceId::from_u64(42).as_u64(), 42);
+    assert_eq!(SequenceId::new(42).as_u64(), 42);
 }
 
 #[test]
 fn sequence_id_display_formats_correctly() {
-    assert_eq!(format!("{}", SequenceId::from_u64(5)), "SequenceId(5)");
+    assert_eq!(format!("{}", SequenceId::new(5)), "SequenceId(5)");
 }
 
 #[test]
 fn event_record_getters_delegate_to_event_fields() {
     let event = Event {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
         community_id: CommunityId::new(),
         payload: EventPayload::Grant { count: 1 },
     };
     let effect = Effect {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
         community_id: event.community_id,
         mutations: Vec::new(),
     };
@@ -49,7 +51,7 @@ fn community_with_alice() -> (Community, MemberId) {
 fn apply_adds_fruit_to_member_bag() {
     let (mut community, alice_id) = community_with_alice();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::AddFruitToMember {
@@ -67,7 +69,7 @@ fn apply_skips_mutation_for_absent_member() {
     let absent_id = MemberId::new();
     let before = community.clone();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::AddFruitToMember {
@@ -84,7 +86,7 @@ fn apply_with_no_mutations_leaves_community_unchanged() {
     let (mut community, _) = community_with_alice();
     let before = community.clone();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![],
@@ -99,7 +101,7 @@ fn apply_add_member_inserts_member() {
     let member = Member::new("Bob");
     let bob_id = member.id;
     let effect = Effect {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
 
         community_id: community.id,
         mutations: vec![StateMutation::AddMember {
@@ -114,7 +116,7 @@ fn apply_add_member_inserts_member() {
 fn apply_remove_member_removes_member() {
     let (mut community, alice_id) = community_with_alice();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::RemoveMember {
@@ -134,7 +136,7 @@ fn apply_remove_fruit_from_member_removes_one() {
         .unwrap()
         .receive(STRAWBERRY);
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::RemoveFruitFromMember {
@@ -152,7 +154,7 @@ fn apply_remove_fruit_from_member_skips_absent_member() {
     let absent_id = MemberId::new();
     let before = community.clone();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::RemoveFruitFromMember {
@@ -168,7 +170,7 @@ fn apply_remove_fruit_from_member_skips_absent_member() {
 fn apply_set_community_luck_updates_luck() {
     let (mut community, _) = community_with_alice();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::SetCommunityLuck { luck: 100 }],
@@ -181,7 +183,7 @@ fn apply_set_community_luck_updates_luck() {
 fn apply_set_member_luck_updates_member_luck() {
     let (mut community, alice_id) = community_with_alice();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::SetMemberLuck {
@@ -199,7 +201,7 @@ fn apply_set_member_luck_skips_absent_member() {
     let absent_id = MemberId::new();
     let before = community.clone();
     let effect = Effect {
-        id: SequenceId::from_u64(2),
+        id: SequenceId::new(2),
 
         community_id: community.id,
         mutations: vec![StateMutation::SetMemberLuck {

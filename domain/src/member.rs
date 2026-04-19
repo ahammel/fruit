@@ -1,20 +1,13 @@
 use uuid::Uuid;
 
-use crate::{bag::Bag, fruit::Fruit, id::UuidIdentifier};
+use newtype_ids_uuid::UuidIdentifier;
+
+use crate::{bag::Bag, fruit::Fruit};
 
 /// Typed identifier for a [`Member`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(UuidIdentifier)]
+#[allowed_values(all)]
 pub struct MemberId(Uuid);
-
-impl UuidIdentifier for MemberId {
-    fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    fn as_uuid(&self) -> Uuid {
-        self.0
-    }
-}
 
 /// A participant in the game.
 #[derive(Debug, Clone, PartialEq, Eq)]

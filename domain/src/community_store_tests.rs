@@ -1,10 +1,12 @@
 use std::{cell::Cell, io};
 
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
+
 use super::*;
 use crate::{
     community_repo::{CommunityPersistor, CommunityProvider},
     event_log::{Effect, Record},
-    id::{IntegerIdentifier, UuidIdentifier},
 };
 
 fn err() -> Error {
@@ -195,11 +197,10 @@ fn get_latest_propagates_event_log_error() {
 
 #[test]
 fn get_latest_propagates_put_error_after_applying_effects() {
-    use crate::id::IntegerIdentifier;
     let community = Community::new();
     let id = community.id;
     let effect = Effect {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
         community_id: id,
         mutations: vec![],
     };
@@ -275,7 +276,7 @@ impl MultiPageEffectsEventLog {
     fn new(community_id: CommunityId) -> Self {
         let effects = (1..=EFFECTS_PAGE_SIZE as u64)
             .map(|i| Effect {
-                id: SequenceId::from_u64(i),
+                id: SequenceId::new(i),
                 community_id,
                 mutations: vec![],
             })
@@ -321,7 +322,7 @@ fn get_latest_paginates_through_all_effects() {
     let community = Community::new();
     let id = community.id;
     let event_log = MultiPageEffectsEventLog::new(id);
-    let expected_version = SequenceId::from_u64(EFFECTS_PAGE_SIZE as u64);
+    let expected_version = SequenceId::new(EFFECTS_PAGE_SIZE as u64);
     let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
     let result = store.get_latest(id).unwrap().unwrap();
     assert_eq!(result.version, expected_version);

@@ -4,12 +4,14 @@ use std::{
     sync::RwLock,
 };
 
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
+
 use fruit_domain::{
     community::{Community, CommunityId},
     community_repo::{CommunityPersistor, CommunityProvider, CommunityRepo},
     error::Error,
     event_log::SequenceId,
-    id::{IntegerIdentifier, UuidIdentifier},
 };
 
 /// In-memory implementation of [`CommunityRepo`].

@@ -1,9 +1,12 @@
 use super::*;
+
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
+
 use fruit_domain::{
     community::HasCommunityId,
     event_log::{HasSequenceId, Record},
     fruit::STRAWBERRY,
-    id::UuidIdentifier,
     member::MemberId,
 };
 
@@ -48,9 +51,9 @@ fn poisoned_effect_map() -> RwLock<HashMap<SequenceId, Effect>> {
 #[test]
 fn default_produces_empty_log() {
     let log = InMemoryEventLogRepo::default();
-    assert!(log.get_record(SequenceId::from_u64(1)).unwrap().is_none());
+    assert!(log.get_record(SequenceId::new(1)).unwrap().is_none());
     assert!(log
-        .get_effect_for_event(SequenceId::from_u64(1))
+        .get_effect_for_event(SequenceId::new(1))
         .unwrap()
         .is_none());
 }
@@ -64,13 +67,13 @@ fn get_record_returns_err_when_event_lock_is_poisoned() {
         events: poisoned_event_map(),
         effects: RwLock::new(HashMap::new()),
     };
-    assert!(log.get_record(SequenceId::from_u64(1)).is_err());
+    assert!(log.get_record(SequenceId::new(1)).is_err());
 }
 
 #[test]
 fn get_record_returns_err_when_effect_lock_is_poisoned() {
     use fruit_domain::event_log::EventPayload;
-    let id = SequenceId::from_u64(1);
+    let id = SequenceId::new(1);
     let cid = community_id();
     let mut events = HashMap::new();
     events.insert(
@@ -108,7 +111,7 @@ fn get_effect_for_event_returns_err_when_lock_is_poisoned() {
         events: RwLock::new(HashMap::new()),
         effects: poisoned_effect_map(),
     };
-    assert!(log.get_effect_for_event(SequenceId::from_u64(1)).is_err());
+    assert!(log.get_effect_for_event(SequenceId::new(1)).is_err());
 }
 
 #[test]
@@ -119,7 +122,7 @@ fn append_effect_returns_err_when_lock_is_poisoned() {
         effects: poisoned_effect_map(),
     };
     assert!(log
-        .append_effect(SequenceId::from_u64(1), community_id(), vec![])
+        .append_effect(SequenceId::new(1), community_id(), vec![])
         .is_err());
 }
 
@@ -268,10 +271,7 @@ fn get_record_returns_effect_once_processed() {
 
 #[test]
 fn get_record_returns_none_for_unknown_id() {
-    assert!(log()
-        .get_record(SequenceId::from_u64(99))
-        .unwrap()
-        .is_none());
+    assert!(log().get_record(SequenceId::new(99)).unwrap().is_none());
 }
 
 // --- effect round-trips ---
@@ -301,7 +301,7 @@ fn append_effect_and_get_effect_round_trip() {
 #[test]
 fn get_effect_for_event_returns_none_for_unprocessed_event() {
     assert!(log()
-        .get_effect_for_event(SequenceId::from_u64(1))
+        .get_effect_for_event(SequenceId::new(1))
         .unwrap()
         .is_none());
 }
@@ -313,14 +313,14 @@ fn append_event_fails_on_duplicate_sequence_id() {
     let log = log();
     let cid = community_id();
     let dummy = Event {
-        id: SequenceId::from_u64(1),
+        id: SequenceId::new(1),
         community_id: cid,
         payload: EventPayload::Grant { count: 0 },
     };
     log.events
         .write()
         .unwrap()
-        .insert(SequenceId::from_u64(1), dummy);
+        .insert(SequenceId::new(1), dummy);
     assert!(log
         .append_event(cid, EventPayload::Grant { count: 1 })
         .is_err());
@@ -347,12 +347,12 @@ fn events_and_effects_share_sequence_id() {
         .append_event(cid, EventPayload::Grant { count: 1 })
         .unwrap();
     let effect = log.append_effect(event.id, cid, vec![]).unwrap();
-    assert_eq!(event.id, SequenceId::from_u64(1));
-    assert_eq!(effect.id, SequenceId::from_u64(1));
+    assert_eq!(event.id, SequenceId::new(1));
+    assert_eq!(effect.id, SequenceId::new(1));
     let event2 = log
         .append_event(cid, EventPayload::Grant { count: 2 })
         .unwrap();
-    assert_eq!(event2.id, SequenceId::from_u64(2));
+    assert_eq!(event2.id, SequenceId::new(2));
 }
 
 // --- get_records_before ---
@@ -444,7 +444,7 @@ fn get_records_before_excludes_record_at_exact_cursor() {
             .unwrap();
     }
     // cursor == id of 3rd event; result must not include it
-    let cursor = SequenceId::from_u64(3);
+    let cursor = SequenceId::new(3);
     let records = log.get_records_before(cid, 10, Some(cursor)).unwrap();
     assert_eq!(records.len(), 2);
     assert!(records.iter().all(|r| r.sequence_id() < cursor));
