@@ -33,6 +33,8 @@ impl<ELR: EventLogRepo, CP: CommunityProvider, G: Granter> Providence<ELR, CP, G
     /// Appends a Grant event, computes and applies luck adjustments, calls the
     /// granter, appends the combined effect, and returns all mutations.
     ///
+    /// `&mut self` is required because [`Granter::grant`] takes `&mut self`.
+    ///
     /// Order of operations:
     /// 1. Fetch the previous grant to establish the luck-adjustment window.
     /// 2. Append the Grant event (establishing its sequence ID).

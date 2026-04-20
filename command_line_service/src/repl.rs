@@ -8,8 +8,8 @@ use fruit_domain::{
     event_log_store::EventLogStore,
     fruit::FRUITS,
     gifter::compute_gift,
-    granter::Granter,
     member::Member,
+    providence::Providence,
     random_granter::RandomGranter,
 };
 use fruit_in_memory_db::{
@@ -22,10 +22,15 @@ use fruit_in_memory_db::{
 /// Type `help` at the prompt for a list of available commands.
 pub fn run() {
     let event_log_repo = InMemoryEventLogRepo::new();
+    let community_repo = InMemoryCommunityRepo::new();
     let event_log = EventLogStore::new(&event_log_repo);
-    let store = CommunityStore::new(InMemoryCommunityRepo::new(), &event_log_repo);
+    let store = CommunityStore::new(&community_repo, &event_log_repo);
     let community_id = store.init().unwrap().id;
-    let mut granter = RandomGranter::new(rand::thread_rng());
+    let mut providence = Providence::new(
+        &event_log_repo,
+        &community_repo,
+        RandomGranter::new(rand::thread_rng()),
+    );
     let mut show_help = false;
     let mut show_log_lines: Option<usize> = None;
 
@@ -66,7 +71,7 @@ pub fn run() {
         match tokens[0] {
             "add" => cmd_add(&event_log, community_id, &tokens[1..]),
             "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
-            "grant" => cmd_grant(&store, &event_log, community_id, &mut granter, &tokens[1..]),
+            "grant" => cmd_grant(&store, &mut providence, community_id, &tokens[1..]),
             "gift" => cmd_gift(&store, &event_log, community_id, &tokens[1..]),
             "burn" => cmd_burn(&store, &event_log, community_id, &tokens[1..]),
             "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]),
@@ -85,7 +90,7 @@ pub fn run() {
     }
 }
 
-type Store<'a> = CommunityStore<InMemoryCommunityRepo, &'a InMemoryEventLogRepo>;
+type Store<'a> = CommunityStore<&'a InMemoryCommunityRepo, &'a InMemoryEventLogRepo>;
 
 fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, args: &[&str]) {
     if args.is_empty() {
@@ -136,13 +141,13 @@ fn cmd_remove(
     }
 }
 
-fn cmd_grant(
-    store: &Store<'_>,
-    event_log: &EventLogStore<&InMemoryEventLogRepo>,
-    id: CommunityId,
-    granter: &mut RandomGranter<rand::rngs::ThreadRng>,
-    args: &[&str],
-) {
+type Prov<'a> = Providence<
+    &'a InMemoryEventLogRepo,
+    &'a InMemoryCommunityRepo,
+    RandomGranter<rand::rngs::ThreadRng>,
+>;
+
+fn cmd_grant(store: &Store<'_>, providence: &mut Prov<'_>, id: CommunityId, args: &[&str]) {
     let count = match args.first().and_then(|s| s.parse::<usize>().ok()) {
         Some(n) => n,
         None => {
@@ -150,13 +155,8 @@ fn cmd_grant(
             return;
         }
     };
-    let event = event_log
-        .append_event(id, EventPayload::Grant { count })
-        .unwrap();
-    let mut community = fetch(store, id);
-    let mutations = granter.grant(&community, count);
-    let effect = event_log.append_effect(event.id, id, mutations).unwrap();
-    community.apply_effects([effect]);
+    let community = fetch(store, id);
+    providence.grant_fruit(&community, count).unwrap();
 }
 
 fn cmd_gift(
