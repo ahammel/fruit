@@ -5,3 +5,4 @@ mutants.out.old/
 /.cargo-lock
 /share/
 tarpaulin-report.html
+TODO.md

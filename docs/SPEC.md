@@ -56,6 +56,39 @@ pub trait IntegerIdentifier: Debug + Clone + Copy + PartialEq + Eq + Hash + Ord 
 All entity IDs are newtype wrappers around `Uuid` that implement `UuidIdentifier`.
 Currently defined: `CommunityId`, `MemberId`.
 
+### Fruit value (`fruit.rs`)
+
+A scalar **value** is defined for each fruit and is used by luck-adjustment calculations:
+
+```
+value(fruit) = category_base(fruit.category) × (1.0 + fruit.rarity())
+```
+
+| Category | `category_base` |
+|----------|-----------------|
+| Standard | 1.0 |
+| Rare | 3.0 |
+| Exotic | 10.0 |
+
+The value range is [1.0, 2.0] for Standard, [3.0, 6.0] for Rare, and [10.0, 20.0] for Exotic.
+Implemented as `Fruit::value() -> f64`.
+
+### Bag value
+
+The **value** of a bag is the sum of the values of all fruits it contains:
+
+```
+bag_value(bag) = Σ value(fruit) × count(fruit)   for each distinct fruit in bag
+```
+
+The **community average bag value** is the mean of all members' individual bag values:
+
+```
+community_avg = Σ bag_value(member.bag) / member_count
+```
+
+Both are implemented as free functions in `bag.rs` and `community.rs` respectively.
+
 ### Fruit (`fruit.rs`)
 
 ```rust
@@ -226,6 +259,21 @@ pub enum EventPayload {
     RemoveMember { member_id: MemberId },
     SetCommunityLuck { luck: u8 },
     SetMemberLuck { member_id: MemberId, luck: u8 },
+    /// Transfer one fruit from sender to recipient.
+    Gift {
+        sender_id: MemberId,
+        recipient_id: MemberId,
+        fruit: Fruit,
+    },
+    /// Destroy one or more fruits held by `member_id`.
+    ///
+    /// `fruits` may contain duplicates and may span multiple fruit types.
+    /// If the member does not hold enough of a particular fruit, as many as they
+    /// hold are burned and the remainder of that type is silently skipped.
+    Burn {
+        member_id: MemberId,
+        fruits: Vec<Fruit>,
+    },
 }
 
 pub struct Event {
@@ -235,11 +283,46 @@ pub struct Event {
 }
 
 pub enum StateMutation {
+    /// Add one fruit to a member's bag.
     AddFruitToMember { member_id: MemberId, fruit: Fruit },
+    /// Remove one fruit from a member's bag. No-op if the member does not hold the fruit.
+    RemoveFruitFromMember { member_id: MemberId, fruit: Fruit },
+    /// Add a member to the community.
     AddMember { member: Member },
+    /// Remove a member from the community.
     RemoveMember { member_id: MemberId },
+    /// Overwrite the community's raw luck value.
     SetCommunityLuck { luck: u8 },
+    /// Overwrite a member's raw luck value.
     SetMemberLuck { member_id: MemberId, luck: u8 },
+
+    // ── Luck adjustments (computed at grant time) ──────────────────────────────
+    //
+    // Each carries a signed `delta: i16`. Applied as:
+    //   new_raw = (current_raw as i16 + delta).clamp(0, 255) as u8
+    //
+    // Positive deltas increase luck; negative deltas decrease it.
+    // Using i16 avoids overflow when summing multiple adjustments.
+
+    /// +personal luck for the member who performed a gift since the last grant.
+    /// Proportional to the total value of all fruits they gifted.
+    GiftLuckBonus { member_id: MemberId, delta: i16 },
+
+    /// +community luck for burns performed since the last grant.
+    /// Proportional to the total value of all fruits burned.
+    BurnLuckBonus { delta: i16 },
+
+    /// −personal luck penalty for an ostentatious gift (gift value greatly exceeded
+    /// the recipient's bag value at the time of the gift).
+    OstentatiousGiftPenalty { member_id: MemberId, delta: i16 },
+
+    /// −personal luck penalty for an ostentatious burn (burn value greatly exceeded
+    /// the community average bag value at the time of the burn).
+    OstentatiousBurnPenalty { member_id: MemberId, delta: i16 },
+
+    /// −community luck penalty for quid-pro-quo gifting behaviour detected across
+    /// the 100 most recent gift events.
+    QuidProQuoPenalty { delta: i16 },
 }
 
 pub struct Effect {
@@ -252,12 +335,228 @@ pub struct Effect {
 `EventPayload` and `StateMutation` derive `Debug, Clone, PartialEq, Eq`.
 `Event`, `Effect`, and `Record` derive `Debug, Clone, PartialEq, Eq`.
 
-`Effect::apply` handles all five `StateMutation` variants:
+`Effect::apply` handles all `StateMutation` variants:
+
+**Bag mutations**
 - `AddFruitToMember` — calls `member.receive(fruit)`; silently skips absent members.
+- `RemoveFruitFromMember` — calls `member.bag.remove(fruit)`; silently skips absent members.
+
+**Membership mutations**
 - `AddMember` — calls `community.add_member(member.clone())`.
 - `RemoveMember` — calls `community.remove_member(member_id)`.
-- `SetCommunityLuck` — sets the community's raw luck value.
+
+**Absolute luck overrides**
+- `SetCommunityLuck` — sets the community's raw luck value directly.
 - `SetMemberLuck` — sets a member's raw luck value; silently skips absent members.
+
+**Delta luck adjustments** (applied with saturating arithmetic)
+
+Each delta variant applies: `new_raw = (current_raw as i16 + delta).clamp(0, 255) as u8`.
+
+- `GiftLuckBonus` — adjusts member personal luck; silently skips absent members.
+- `BurnLuckBonus` — adjusts community luck.
+- `OstentatiousGiftPenalty` — adjusts member personal luck (delta is negative); silently skips absent members.
+- `OstentatiousBurnPenalty` — adjusts member personal luck (delta is negative); silently skips absent members.
+- `QuidProQuoPenalty` — adjusts community luck (delta is negative).
+
+### Gift computation (`gifter.rs`)
+
+```rust
+pub fn compute_gift(
+    community: &Community,
+    sender_id: MemberId,
+    recipient_id: MemberId,
+    fruit: Fruit,
+) -> Vec<StateMutation>
+```
+
+Returns `[RemoveFruitFromMember { sender_id }, AddFruitToMember { recipient_id }]` if the
+sender holds the fruit, or an empty `Vec` (no-op) if the sender is unknown or does not
+hold the fruit.
+
+### Burn computation (`burner.rs`)
+
+```rust
+pub fn compute_burn(
+    community: &Community,
+    member_id: MemberId,
+    fruits: &[Fruit],
+) -> Vec<StateMutation>
+```
+
+Accepts a slice of fruits (duplicates allowed). For each distinct fruit type, burns
+`min(requested, held)` instances. Returns one `RemoveFruitFromMember` per fruit actually
+burned. Returns an empty `Vec` if the member is unknown, `fruits` is empty, or no
+requested fruits are held.
+
+### Luck adjustments (`luck_adjustments.rs`)
+
+Pure computation layer. Accepts pre-fetched event slices and returns mutations; performs
+no I/O.
+
+```rust
+pub fn compute(
+    community_at_last_grant: &Community,
+    records_since_last_grant: &[Record],
+    recent_gift_records: &[Record],
+) -> Vec<StateMutation>
+```
+
+The inputs are:
+
+- `community_at_last_grant` — the community snapshot at the moment the previous `Grant`
+  effect was applied (version = previous grant's `SequenceId`). Used as the starting
+  state for replaying `records_since_last_grant` to derive intermediate bag values for
+  ostentation calculations. Pass the initial community (version zero) if no prior grant
+  exists.
+- `records_since_last_grant` — all `Record`s whose sequence ID falls strictly between the
+  previous grant and the current one. Only records with a non-empty effect are
+  considered for luck calculations; no-op records (e.g. a gift where the sender did not
+  hold the fruit) are ignored.
+- `recent_gift_records` — up to the 100 most recent `Gift` `Record`s across all time,
+  used for quid-pro-quo detection. Only records with non-empty effects are counted.
+
+**Ostentation values are computed by replaying `records_since_last_grant`** against a
+mutable clone of `community_at_last_grant`. Before applying each `Gift` or `Burn`
+record's effect, the current running state provides the recipient's bag value or the
+community average bag value needed for the ostentation check.
+
+#### Gift luck bonus (`GiftLuckBonus`)
+
+For each member who appears as `sender_id` in at least one `Gift` event in
+`since_last_grant`:
+
+```
+total_gift_value = Σ value(fruit)   for each Gift by this member
+delta = (total_gift_value / GIFT_LUCK_SCALE).round() as i16   (clamped to i16::MAX)
+```
+
+One `GiftLuckBonus { member_id, delta }` mutation is emitted per qualifying member.
+
+#### Burn luck bonus (`BurnLuckBonus`)
+
+```
+total_burn_value = Σ value(fruit)   for all Burn events in since_last_grant
+                                    (only fruits actually burned, i.e. min(requested, held))
+delta = (total_burn_value / BURN_LUCK_SCALE).round() as i16   (clamped to i16::MAX)
+```
+
+One `BurnLuckBonus { delta }` mutation is emitted if `delta > 0`.
+
+#### Ostentatious gift penalty (`OstentatiousGiftPenalty`)
+
+For each `Gift` record in `records_since_last_grant` with a non-empty effect, the
+recipient's bag value is read from the running community state **before** the effect is
+applied:
+
+```
+recipient_bag_value = bag_value(running_state.members[recipient_id].bag)
+excess = value(fruit) - OSTENTATION_RATIO × recipient_bag_value
+```
+
+If `excess > 0.0`:
+
+```
+delta = -(excess / OSTENTATION_SCALE).round() as i16   (clamped to i16::MIN)
+```
+
+One `OstentatiousGiftPenalty { member_id: sender_id, delta }` mutation is emitted per
+qualifying gift. Multiple ostentatious gifts by the same member produce multiple
+mutations; `Effect::apply` applies them in sequence with saturating arithmetic.
+
+#### Ostentatious burn penalty (`OstentatiousBurnPenalty`)
+
+For each `Burn` record in `records_since_last_grant` with a non-empty effect, the
+community average is read from the running community state **before** the effect is
+applied:
+
+```
+community_avg = community_avg_bag_value(running_state)
+total_burn_value = Σ value(fruit)   for fruits in the effect's RemoveFruitFromMember mutations
+excess = total_burn_value - OSTENTATION_RATIO × community_avg
+```
+
+If `excess > 0.0`:
+
+```
+delta = -(excess / OSTENTATION_SCALE).round() as i16
+```
+
+One `OstentatiousBurnPenalty { member_id, delta }` mutation is emitted per qualifying
+burn record. Using the effect's mutations (not the event's `fruits` field) gives the
+actually-burned quantity rather than the requested quantity.
+
+#### Quid-pro-quo penalty (`QuidProQuoPenalty`)
+
+A **reciprocal gift pair** is a pair of `Gift` events from `recent_gifts` where one goes
+A→B and another goes B→A. A pair is **quasi-symmetrical** if the values are similar but
+not equal:
+
+```
+let va = value(a_to_b.fruit)
+let vb = value(b_to_a.fruit)
+is_quasi_symmetrical =
+    va != vb
+    AND |va - vb| / va.max(vb) < QP_SIMILARITY_THRESHOLD
+```
+
+Each gift in `recent_gifts` is matched against every gift going in the opposite direction
+between the same two members. Pairs are counted with repetition (one gift can form a
+pair with multiple reciprocal gifts).
+
+```
+quasi_symmetrical_count = count of quasi-symmetrical reciprocal gift pairs in recent_gifts
+ratio = quasi_symmetrical_count as f64 / recent_gifts.len().max(1) as f64
+delta = -(ratio * QP_MAX_PENALTY).round() as i16
+```
+
+One `QuidProQuoPenalty { delta }` mutation is emitted if `delta < 0`.
+
+#### Tuning constants
+
+These constants are defined in `luck_adjustments.rs` and are subject to balance tuning:
+
+| Constant | Initial value | Role |
+|----------|--------------|------|
+| `GIFT_LUCK_SCALE` | 10.0 | Divisor converting total gift value to luck delta |
+| `BURN_LUCK_SCALE` | 10.0 | Divisor converting total burn value to luck delta |
+| `OSTENTATION_RATIO` | 2.0 | Multiplier applied to baseline before measuring excess |
+| `OSTENTATION_SCALE` | 5.0 | Divisor converting excess value to luck delta |
+| `QP_SIMILARITY_THRESHOLD` | 0.2 | Max relative value difference to count as quasi-symmetrical |
+| `QP_MAX_PENALTY` | 64.0 | Maximum quid-pro-quo community luck penalty (as raw u8 delta) |
+
+### Luck adjuster (`luck_adjuster.rs`)
+
+I/O layer that fetches the event slices needed by `luck_adjustments::compute` and
+returns the computed mutations.
+
+```rust
+pub struct LuckAdjuster<ELP: EventLogProvider, CP: CommunityProvider> {
+    event_log: ELP,
+    community_provider: CP,
+}
+
+impl<ELP: EventLogProvider, CP: CommunityProvider> LuckAdjuster<ELP, CP> {
+    pub fn new(event_log: ELP, community_provider: CP) -> Self;
+
+    /// Fetches event history and computes all luck-adjustment mutations for a grant.
+    ///
+    /// `before` is the `SequenceId` of the `Grant` event just recorded; only records
+    /// strictly before this ID are considered "since the last grant".
+    pub fn compute(&self, community: &Community, before: SequenceId) -> Result<Vec<StateMutation>, Error>;
+}
+```
+
+`compute` internally:
+1. Calls `get_latest_grant_events(community.id, 1)` to find the previous grant's
+   `SequenceId` (`prev_grant_id`); uses `SequenceId::zero()` if none exists.
+2. Calls `community_provider.get(community.id, prev_grant_id)` to fetch the community
+   snapshot at the last grant boundary. Falls back to the initial community (version
+   zero) if the snapshot is absent.
+3. Calls `get_records_between(community.id, prev_grant_id, before)` →
+   `records_since_last_grant`.
+4. Calls `get_latest_gift_records(community.id, 100)` → `recent_gift_records`.
+5. Delegates to `luck_adjustments::compute(&community_at_last_grant, &records_since_last_grant, &recent_gift_records)`.
 
 ### Granter port (`granter.rs`)
 
@@ -267,9 +566,46 @@ pub trait Granter {
 }
 ```
 
-Computes the `StateMutation`s that would result from distributing `count` fruits to
-**each** member of `community`. The caller is responsible for recording the returned
-mutations as an `Effect` and applying them.
+Computes `AddFruitToMember` mutations by distributing `count` fruits to each member of
+`community` using weighted-random selection. Expects a community whose luck values already
+reflect any adjustments for this grant cycle — the `Drop` struct (see below) is responsible
+for providing that. The caller records the returned mutations as part of an `Effect` and
+applies them.
+
+### Providence (`providence.rs`)
+
+`Providence` is the domain-level orchestrator of a grant cycle. It combines a
+`LuckAdjuster` and a `Granter` and owns the logic for how they work together.
+
+```rust
+pub struct Providence<ELP: EventLogProvider, CP: CommunityProvider, G: Granter> {
+    luck_adjuster: LuckAdjuster<ELP, CP>,
+    granter: G,
+}
+
+impl<ELP: EventLogProvider, CP: CommunityProvider, G: Granter> Providence<ELP, CP, G> {
+    pub fn new(luck_adjuster: LuckAdjuster<ELP>, granter: G) -> Self;
+
+    /// Computes the full set of state mutations for one grant cycle.
+    ///
+    /// `grant_event_id` is the `SequenceId` of the `Grant` event already appended to the
+    /// log. Returns luck-adjustment mutations followed by fruit-grant mutations, in that
+    /// order, as a single flat `Vec` ready to be recorded as one `Effect`.
+    pub fn grant_fruit(
+        &mut self,
+        community: &Community,
+        count: usize,
+        grant_event_id: SequenceId,
+    ) -> Result<Vec<StateMutation>, Error>;
+}
+```
+
+`grant_fruit` implementation:
+
+1. `luck_adjuster.compute(community, grant_event_id)` → `luck_mutations`.
+2. Clone `community` and apply `luck_mutations` to the clone → `luck_adjusted`.
+3. `granter.grant(&luck_adjusted, count)` → `fruit_mutations`.
+4. Return `Ok(luck_mutations + fruit_mutations)`.
 
 ### Fruit weights (`fruit_weights.rs`)
 
@@ -308,7 +644,8 @@ min-rarity (r=0) fruit within any category at any luck value.
 ### Random granter (`random_granter.rs`)
 
 `RandomGranter<R: Rng, W: FruitWeights = DefaultFruitWeights>` implements `Granter`
-using weighted-random selection with an injectable weight strategy.
+using weighted-random selection and an injectable weight strategy. It has no knowledge
+of the event log; luck adjustments are applied by the caller before invoking `grant`.
 
 **Effective luck** for a member is the sum of member and community luck (each in
 `[0.0, 1.0]`):
@@ -354,6 +691,15 @@ pub trait EventLogProvider {
     fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
     fn get_effects_after(&self, community_id: CommunityId, limit: usize, after: SequenceId) -> Result<Vec<Effect>, Error>;
     fn get_records_before(&self, community_id: CommunityId, limit: usize, before: Option<SequenceId>) -> Result<Vec<Record>, Error>;
+    /// Returns up to `limit` events for `community_id` whose payload matches `EventPayload::Grant`,
+    /// sorted descending by sequence ID (most recent first).
+    fn get_latest_grant_events(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Event>, Error>;
+    /// Returns up to `limit` records for `community_id` whose event payload matches
+    /// `EventPayload::Gift`, sorted descending by sequence ID (most recent first).
+    fn get_latest_gift_records(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Record>, Error>;
+    /// Returns all records for `community_id` with sequence ID strictly greater than `after`
+    /// and strictly less than `before`, sorted ascending.
+    fn get_records_between(&self, community_id: CommunityId, after: SequenceId, before: SequenceId) -> Result<Vec<Record>, Error>;
 }
 
 pub trait EventLogPersistor {
@@ -410,7 +756,10 @@ entry with the greatest key.
 `InMemoryEventLogRepo` implements `EventLogRepo` using two separate
 `RwLock<HashMap>`s — one for events (keyed by sequence ID) and one for effects (also
 keyed by sequence ID, which equals the event's ID) — plus a shared `AtomicU64` sequence
-counter that is incremented only when appending events.
+counter that is incremented only when appending events. The three new provider methods
+(`get_latest_grant_events`, `get_latest_gift_records`, `get_records_between`) scan the
+events and effects `HashMap`s linearly and sort/filter/join in memory; no additional
+index is maintained.
 
 For both types:
 - Reads acquire a shared read lock.
@@ -427,7 +776,16 @@ For both types:
 A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 
 **Start-up**: creates one community backed by `InMemoryCommunityRepo` and
-`InMemoryEventLogRepo`; creates a `RandomGranter` seeded from `rand::thread_rng()`.
+`InMemoryEventLogRepo`; constructs a `Providence` wrapping a `LuckAdjuster` (backed by
+both the event log repo and the community repo) and a `RandomGranter` (seeded from
+`rand::thread_rng()`).
+
+**Grant flow** (executed when the `grant` command is issued):
+
+1. Append a `Grant { count }` event → `grant_event`.
+2. `drop.grant_fruit(&community, count, grant_event.id)?` → `mutations`.
+3. Append one effect containing `mutations`.
+4. Apply the effect to the live community.
 
 **Commands**:
 
@@ -435,7 +793,9 @@ A terminal REPL (`repl::run()`) for interactive testing of the game loop.
 |---------|-------------|
 | `add <name>` | Add a member (recorded as `AddMember` event + effect) |
 | `remove <name>` | Remove a member by display name (recorded as `RemoveMember` event + effect) |
-| `grant <count>` | Grant N fruits to every member (recorded as `Grant` event + effect) |
+| `grant <count>` | Grant N fruits to every member; computes luck adjustments (recorded as `Grant` event + effect) |
+| `gift <from_name> <to_name> <emoji>` | Give one fruit from sender to recipient (recorded as `Gift` event + effect) |
+| `burn <name> <emoji> [<emoji> ...]` | Destroy one or more fruits held by a member (recorded as `Burn` event + effect) |
 | `luck <value>` | Set community luck (float in `[0.0, 1.0]`) |
 | `luck <name> <value>` | Set a member's luck |
 | `log <n>` | Show the N most recent log records |

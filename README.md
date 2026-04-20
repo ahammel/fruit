@@ -13,24 +13,29 @@ scores:
 
 Both scores are normalised floats in `[0.0, 1.0]` (stored internally as `u16`).
 
-### What raises luck
+### Luck adjustments
+
+Luck is recalculated at each **grant** based on what happened since the previous one.
+Actions that accumulate between grants:
 
 | Action | Effect |
 |--------|--------|
-| Gifting fruit to another player | +personal luck |
-| Burning fruit | +community luck |
-
-### What lowers luck
-
-| Action | Effect |
-|--------|--------|
-| Hoarding fruit without gifting or burning | −personal luck, −community luck |
-| Ostentatious gifts the recipient could not plausibly reciprocate | −personal luck |
-| Ostentatious burns that exceed what the community average could plausibly match | −personal luck |
-| Quid-pro-quo trades | −community luck |
+| Gifting fruit to another player | +personal luck (gifter), proportional to rarity and value |
+| Burning fruit | +community luck, proportional to rarity and value |
+| Ostentatious gift — gift value greatly exceeds recipient's bag value | −personal luck (gifter) |
+| Ostentatious burn — burn value greatly exceeds community average bag value | −personal luck (burner) |
+| Quid-pro-quo gifting — reciprocal gifts of similar but unequal value between the same two players | −community luck |
 
 The game rewards generosity and communal contribution; it penalises status-signalling
 and transactional behaviour.
+
+**Ostentation** is judged relative to the recipient's or community's bag value *at the
+time* the gift or burn was recorded. A large gift to a rich player is less ostentatious
+than the same gift to a player holding nothing.
+
+**Quid-pro-quo** is detected from the 100 most recent gift events: the more frequently
+pairs of members exchange gifts of similar (but not exactly equal) value in both
+directions, the larger the community luck penalty.
 
 ## Fruits
 
@@ -124,10 +129,12 @@ Designed to run inside chat platforms:
 ```
 > add Alice
 > add Bob
-> luck 0.3            # set community luck (0.0–1.0)
-> luck Alice 0.8      # set member luck
-> grant 5             # grant 5 fruits to every member
-> log 10              # show the 10 most recent log records
+> luck 0.3                      # set community luck (0.0–1.0)
+> luck Alice 0.8                # set member luck
+> grant 5                       # grant 5 fruits to every member (applies luck adjustments)
+> gift Alice Bob 🍓             # Alice gives Bob one strawberry
+> burn Alice 🍇 🍇              # Alice burns two grapes
+> log 10                        # show the 10 most recent log records
 > remove Bob
 > quit
 ```
