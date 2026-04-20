@@ -68,6 +68,11 @@ impl Member {
         self._luck as f64 / u8::MAX as f64
     }
 
+    /// Returns the raw internal luck value in `[0, 255]`.
+    pub(crate) fn luck_raw(&self) -> u8 {
+        self._luck
+    }
+
     /// Adds one instance of `fruit` to this member's bag.
     pub fn receive(&mut self, fruit: Fruit) -> &mut Self {
         self.bag = std::mem::take(&mut self.bag).insert(fruit);

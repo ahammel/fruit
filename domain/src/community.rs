@@ -83,6 +83,11 @@ impl Community {
         self._luck as f64 / u8::MAX as f64
     }
 
+    /// Returns the raw internal luck value in `[0, 255]`.
+    pub(crate) fn luck_raw(&self) -> u8 {
+        self._luck
+    }
+
     /// Adds `member` to the community. Returns `true` if the member was newly inserted,
     /// `false` if a member with the same ID was already present.
     pub fn add_member(&mut self, member: Member) -> bool {

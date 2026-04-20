@@ -115,6 +115,26 @@ pub enum StateMutation {
     SetCommunityLuck { luck: u8 },
     /// Set the luck of the member identified by `member_id` to `luck` (raw `u8`).
     SetMemberLuck { member_id: MemberId, luck: u8 },
+    /// Adjust the luck of `member_id` by `delta`, clamped to `[0, 255]`.
+    ///
+    /// Emitted when a member gifts fruit; `delta` is positive.
+    GiftLuckBonus { member_id: MemberId, delta: i16 },
+    /// Adjust community luck by `delta`, clamped to `[0, 255]`.
+    ///
+    /// Emitted when a member burns fruit; `delta` is positive.
+    BurnLuckBonus { delta: i16 },
+    /// Adjust the luck of `member_id` by `delta`, clamped to `[0, 255]`.
+    ///
+    /// Emitted when a gift is deemed ostentatious; `delta` is negative.
+    OstentatiousGiftPenalty { member_id: MemberId, delta: i16 },
+    /// Adjust the luck of `member_id` by `delta`, clamped to `[0, 255]`.
+    ///
+    /// Emitted when a burn is deemed ostentatious; `delta` is negative.
+    OstentatiousBurnPenalty { member_id: MemberId, delta: i16 },
+    /// Adjust community luck by `delta`, clamped to `[0, 255]`.
+    ///
+    /// Emitted when quid-pro-quo gifting is detected; `delta` is negative.
+    QuidProQuoPenalty { delta: i16 },
 }
 
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain
@@ -130,6 +150,10 @@ pub struct Effect {
     pub community_id: CommunityId,
     /// The state changes produced by this effect. Empty if the event was a no-op.
     pub mutations: Vec<StateMutation>,
+}
+
+fn apply_luck_delta(raw: u8, delta: i16) -> u8 {
+    (raw as i16 + delta).clamp(0, 255) as u8
 }
 
 impl Effect {
@@ -164,6 +188,21 @@ impl Effect {
                             .members
                             .insert(*member_id, member.with_luck(*luck));
                     }
+                }
+                StateMutation::GiftLuckBonus { member_id, delta }
+                | StateMutation::OstentatiousGiftPenalty { member_id, delta }
+                | StateMutation::OstentatiousBurnPenalty { member_id, delta } => {
+                    if let Some(member) = community.members.remove(member_id) {
+                        let new_luck = apply_luck_delta(member.luck_raw(), *delta);
+                        community
+                            .members
+                            .insert(*member_id, member.with_luck(new_luck));
+                    }
+                }
+                StateMutation::BurnLuckBonus { delta }
+                | StateMutation::QuidProQuoPenalty { delta } => {
+                    let new_luck = apply_luck_delta(community.luck_raw(), *delta);
+                    *community = community.clone().with_luck(new_luck);
                 }
             }
         }

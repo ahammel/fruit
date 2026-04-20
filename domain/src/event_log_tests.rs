@@ -196,6 +196,142 @@ fn apply_set_member_luck_updates_member_luck() {
 }
 
 #[test]
+fn apply_gift_luck_bonus_adjusts_member_luck() {
+    let (mut community, alice_id) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::GiftLuckBonus {
+            member_id: alice_id,
+            delta: 10,
+        }],
+    }
+    .apply(&mut community);
+    assert_eq!(community.members[&alice_id].luck(), 10.0 / u8::MAX as f64);
+}
+
+#[test]
+fn apply_gift_luck_bonus_skips_absent_member() {
+    let (mut community, _) = community_with_alice();
+    let before = community.clone();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::GiftLuckBonus {
+            member_id: MemberId::new(),
+            delta: 10,
+        }],
+    }
+    .apply(&mut community);
+    assert_eq!(community, before);
+}
+
+#[test]
+fn apply_burn_luck_bonus_adjusts_community_luck() {
+    let (mut community, _) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::BurnLuckBonus { delta: 20 }],
+    }
+    .apply(&mut community);
+    assert_eq!(community.luck(), 20.0 / u8::MAX as f64);
+}
+
+#[test]
+fn apply_ostentatious_gift_penalty_adjusts_member_luck() {
+    let (mut community, alice_id) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![
+            StateMutation::GiftLuckBonus {
+                member_id: alice_id,
+                delta: 50,
+            },
+            StateMutation::OstentatiousGiftPenalty {
+                member_id: alice_id,
+                delta: -20,
+            },
+        ],
+    }
+    .apply(&mut community);
+    assert_eq!(community.members[&alice_id].luck(), 30.0 / u8::MAX as f64);
+}
+
+#[test]
+fn apply_ostentatious_burn_penalty_adjusts_member_luck() {
+    let (mut community, alice_id) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![
+            StateMutation::GiftLuckBonus {
+                member_id: alice_id,
+                delta: 50,
+            },
+            StateMutation::OstentatiousBurnPenalty {
+                member_id: alice_id,
+                delta: -15,
+            },
+        ],
+    }
+    .apply(&mut community);
+    assert_eq!(community.members[&alice_id].luck(), 35.0 / u8::MAX as f64);
+}
+
+#[test]
+fn apply_quid_pro_quo_penalty_adjusts_community_luck() {
+    let (mut community, _) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![
+            StateMutation::BurnLuckBonus { delta: 64 },
+            StateMutation::QuidProQuoPenalty { delta: -32 },
+        ],
+    }
+    .apply(&mut community);
+    assert_eq!(community.luck(), 32.0 / u8::MAX as f64);
+}
+
+#[test]
+fn apply_luck_delta_saturates_at_255() {
+    let (mut community, alice_id) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![
+            StateMutation::GiftLuckBonus {
+                member_id: alice_id,
+                delta: 200,
+            },
+            StateMutation::GiftLuckBonus {
+                member_id: alice_id,
+                delta: 200,
+            },
+        ],
+    }
+    .apply(&mut community);
+    assert_eq!(community.members[&alice_id].luck(), 1.0);
+}
+
+#[test]
+fn apply_luck_delta_saturates_at_zero() {
+    let (mut community, alice_id) = community_with_alice();
+    Effect {
+        id: SequenceId::new(1),
+        community_id: community.id,
+        mutations: vec![StateMutation::OstentatiousGiftPenalty {
+            member_id: alice_id,
+            delta: -100,
+        }],
+    }
+    .apply(&mut community);
+    assert_eq!(community.members[&alice_id].luck(), 0.0);
+}
+
+#[test]
 fn apply_set_member_luck_skips_absent_member() {
     let (mut community, _) = community_with_alice();
     let absent_id = MemberId::new();
