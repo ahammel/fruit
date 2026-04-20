@@ -18,5 +18,6 @@ pub mod fruit;
 pub mod fruit_weights;
 pub mod gifter;
 pub mod granter;
+pub mod luck_adjustments;
 pub mod member;
 pub mod random_granter;
