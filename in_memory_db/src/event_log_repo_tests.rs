@@ -799,3 +799,79 @@ fn get_records_between_includes_records_with_no_effect() {
     assert_eq!(records[0].event.id, e2.id);
     assert!(records[0].effect.is_none());
 }
+
+fn via_provider_get_latest_grant_events<T: EventLogProvider>(
+    p: T,
+    cid: CommunityId,
+    limit: usize,
+) -> Result<Vec<Event>, Error> {
+    p.get_latest_grant_events(cid, limit)
+}
+
+fn via_provider_get_latest_gift_records<T: EventLogProvider>(
+    p: T,
+    cid: CommunityId,
+    limit: usize,
+) -> Result<Vec<Record>, Error> {
+    p.get_latest_gift_records(cid, limit)
+}
+
+fn via_provider_get_records_between<T: EventLogProvider>(
+    p: T,
+    cid: CommunityId,
+    after: SequenceId,
+    before: SequenceId,
+) -> Result<Vec<Record>, Error> {
+    p.get_records_between(cid, after, before)
+}
+
+#[test]
+fn ref_delegates_get_latest_grant_events() {
+    let log = log();
+    let cid = community_id();
+    let event = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    assert_eq!(
+        via_provider_get_latest_grant_events(&log, cid, 10).unwrap(),
+        vec![event]
+    );
+}
+
+#[test]
+fn ref_delegates_get_latest_gift_records() {
+    let log = log();
+    let cid = community_id();
+    let mid = MemberId::new();
+    let event = log
+        .append_event(
+            cid,
+            EventPayload::Gift {
+                sender_id: mid,
+                recipient_id: mid,
+                fruit: STRAWBERRY,
+            },
+        )
+        .unwrap();
+    let records = via_provider_get_latest_gift_records(&log, cid, 10).unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].event.id, event.id);
+}
+
+#[test]
+fn ref_delegates_get_records_between() {
+    let log = log();
+    let cid = community_id();
+    let e1 = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let e2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    let e3 = log
+        .append_event(cid, EventPayload::Grant { count: 3 })
+        .unwrap();
+    let records = via_provider_get_records_between(&log, cid, e1.id, e3.id).unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].event.id, e2.id);
+}

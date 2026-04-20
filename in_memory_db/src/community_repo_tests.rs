@@ -1,7 +1,9 @@
 use super::*;
 use crate::event_log_repo::InMemoryEventLogRepo;
 use fruit_domain::{
+    community_repo::{CommunityPersistor, CommunityProvider},
     community_store::{CommunityStore, EFFECTS_PAGE_SIZE},
+    error::Error,
     event_log::EventPayload,
     event_log_repo::EventLogPersistor,
 };
@@ -259,4 +261,60 @@ fn store_get_latest_paginates_through_effects_exceeding_page_size() {
     let store = CommunityStore::new(repo, event_log);
     let latest = store.get_latest(id).unwrap().unwrap();
     assert_eq!(latest.version, SequenceId::from(n as u64));
+}
+
+// --- &InMemoryCommunityRepo delegation ---
+
+fn via_provider_get<T: CommunityProvider>(
+    p: T,
+    id: CommunityId,
+    version: SequenceId,
+) -> Result<Option<Community>, Error> {
+    p.get(id, version)
+}
+
+fn via_provider_get_latest<T: CommunityProvider>(
+    p: T,
+    id: CommunityId,
+) -> Result<Option<Community>, Error> {
+    p.get_latest(id)
+}
+
+fn via_persistor_put<T: CommunityPersistor>(
+    p: T,
+    community: Community,
+) -> Result<Community, Error> {
+    p.put(community)
+}
+
+#[test]
+fn ref_delegates_get() {
+    let repo = repo();
+    let community = Community::new();
+    let id = community.id;
+    let version = community.version;
+    repo.put(community.clone()).unwrap();
+    assert_eq!(
+        via_provider_get(&repo, id, version).unwrap(),
+        Some(community)
+    );
+}
+
+#[test]
+fn ref_delegates_get_latest() {
+    let repo = repo();
+    let community = Community::new();
+    let id = community.id;
+    repo.put(community.clone()).unwrap();
+    assert_eq!(via_provider_get_latest(&repo, id).unwrap(), Some(community));
+}
+
+#[test]
+fn ref_delegates_put() {
+    let repo = repo();
+    let community = Community::new();
+    let id = community.id;
+    let version = community.version;
+    via_persistor_put(&repo, community.clone()).unwrap();
+    assert_eq!(repo.get(id, version).unwrap(), Some(community));
 }

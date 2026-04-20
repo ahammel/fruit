@@ -165,9 +165,7 @@ fn qp_penalty(recent_gift_records: &[Record]) -> Option<StateMutation> {
             continue;
         }
 
-        let Some(ab_vals) = directed_gifts.get(&(sender, recipient)) else {
-            continue;
-        };
+        let ab_vals = &directed_gifts[&(sender, recipient)];
         let Some(ba_vals) = directed_gifts.get(&(recipient, sender)) else {
             continue;
         };

@@ -4,7 +4,7 @@ use crate::{
     community::Community,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
     fruit::{Fruit, GRAPES, MANGO, MELON},
-    member::Member,
+    member::{Member, MemberId},
 };
 
 fn seq(n: u64) -> SequenceId {
@@ -290,6 +290,119 @@ fn equal_value_reciprocal_gifts_not_counted_as_qp() {
     // Both gift GRAPES (same value) — va == vb so the `va != vb` guard excludes them
     let r_ab = gift_record(1, &community, &alice, &bob, GRAPES, true);
     let r_ba = gift_record(2, &community, &bob, &alice, GRAPES, true);
+    let result = compute(&community, &[], &[r_ab, r_ba]);
+    assert_eq!(result, vec![]);
+}
+
+#[test]
+fn record_with_absent_effect_is_skipped() {
+    let community = Community::new();
+    let sender = Member::new("Alice");
+    let recipient = Member::new("Bob");
+    // effect: None (not even an empty vec — the event was never processed)
+    let record = Record {
+        event: Event {
+            id: seq(1),
+            community_id: community.id,
+            payload: EventPayload::Gift {
+                sender_id: sender.id,
+                recipient_id: recipient.id,
+                fruit: GRAPES,
+            },
+        },
+        effect: None,
+    };
+    let result = compute(&community, &[record], &[]);
+    assert_eq!(result, vec![]);
+}
+
+#[test]
+fn burn_effect_with_non_remove_mutation_is_ignored_in_value_sum() {
+    // A burn effect that contains an AddFruitToMember mutation (e.g. from a
+    // hypothetical side-effect) should not be counted toward burned_value.
+    let mut community = Community::new();
+    let burner = Member::new("Alice");
+    let other_id = MemberId::new();
+    community.add_member(burner.clone());
+
+    let record = Record {
+        event: Event {
+            id: seq(1),
+            community_id: community.id,
+            payload: EventPayload::Burn {
+                member_id: burner.id,
+                fruits: vec![GRAPES],
+            },
+        },
+        effect: Some(Effect {
+            id: seq(1),
+            community_id: community.id,
+            // Only a non-Remove mutation — burned_value sums to 0 → no bonus emitted
+            mutations: vec![StateMutation::AddFruitToMember {
+                member_id: other_id,
+                fruit: GRAPES,
+            }],
+        }),
+    };
+    let result = compute(&community, &[record], &[]);
+    assert_eq!(result, vec![]);
+}
+
+#[test]
+fn non_gift_non_burn_record_is_skipped() {
+    let community = Community::new();
+    let member = Member::new("Alice");
+    // A Grant record with a non-empty effect — should produce no luck mutations.
+    let record = Record {
+        event: Event {
+            id: seq(1),
+            community_id: community.id,
+            payload: EventPayload::Grant { count: 1 },
+        },
+        effect: Some(Effect {
+            id: seq(1),
+            community_id: community.id,
+            mutations: vec![StateMutation::AddFruitToMember {
+                member_id: member.id,
+                fruit: GRAPES,
+            }],
+        }),
+    };
+    let result = compute(&community, &[record], &[]);
+    assert_eq!(result, vec![]);
+}
+
+#[test]
+fn qp_gift_with_absent_effect_is_skipped() {
+    let community = Community::new();
+    let alice = Member::new("Alice");
+    let bob = Member::new("Bob");
+
+    // Both gifts have effect: None — should not count as QP
+    let r_ab = Record {
+        event: Event {
+            id: seq(1),
+            community_id: community.id,
+            payload: EventPayload::Gift {
+                sender_id: alice.id,
+                recipient_id: bob.id,
+                fruit: GRAPES,
+            },
+        },
+        effect: None,
+    };
+    let r_ba = Record {
+        event: Event {
+            id: seq(2),
+            community_id: community.id,
+            payload: EventPayload::Gift {
+                sender_id: bob.id,
+                recipient_id: alice.id,
+                fruit: MELON,
+            },
+        },
+        effect: None,
+    };
     let result = compute(&community, &[], &[r_ab, r_ba]);
     assert_eq!(result, vec![]);
 }
