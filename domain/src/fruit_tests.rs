@@ -112,6 +112,30 @@ fn equality_uses_all_fields() {
 }
 
 #[test]
+fn value_standard_at_lowest_rarity() {
+    // GRAPES: Standard, _rarity = 0 → rarity = 0.0 → value = 1.0 * (1 + 0) = 1.0
+    assert_eq!(GRAPES.value(), 1.0);
+}
+
+#[test]
+fn value_rare_at_lowest_rarity() {
+    // PEAR: Rare, _rarity = 0 → rarity = 0.0 → value = 3.0 * (1 + 0) = 3.0
+    assert_eq!(PEAR.value(), 3.0);
+}
+
+#[test]
+fn value_exotic_at_lowest_rarity() {
+    // MANGO: Exotic, _rarity = 0 → rarity = 0.0 → value = 10.0 * (1 + 0) = 10.0
+    assert_eq!(MANGO.value(), 10.0);
+}
+
+#[test]
+fn value_exotic_at_highest_rarity() {
+    // OLIVE: Exotic, _rarity = 255 → rarity = 1.0 → value = 10.0 * (1 + 1) = 20.0
+    assert_eq!(OLIVE.value(), 20.0);
+}
+
+#[test]
 fn hash_consistent_with_eq() {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};

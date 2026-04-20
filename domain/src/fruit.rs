@@ -36,6 +36,19 @@ impl Fruit {
     pub fn rarity(&self) -> f64 {
         self._rarity as f64 / u8::MAX as f64
     }
+
+    /// Intrinsic value of this fruit, used to compute luck bonuses and ostentation penalties.
+    ///
+    /// Equals `category_base × (1.0 + rarity())`, where the bases are:
+    /// `Standard = 1.0`, `Rare = 3.0`, `Exotic = 10.0`.
+    pub fn value(&self) -> f64 {
+        let base = match self.category {
+            Category::Standard => 1.0,
+            Category::Rare => 3.0,
+            Category::Exotic => 10.0,
+        };
+        base * (1.0 + self.rarity())
+    }
 }
 
 // ── Standard (9) ─────────────────────────────────────────────────────────────

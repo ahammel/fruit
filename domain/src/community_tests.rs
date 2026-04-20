@@ -1,4 +1,6 @@
 use super::*;
+use crate::bag::Bag;
+use crate::fruit::{GRAPES, PEAR};
 
 #[test]
 fn community_id_returns_id() {
@@ -81,6 +83,28 @@ fn with_luck_f64_sets_luck() {
 fn with_version_sets_version() {
     let v = SequenceId::new(42);
     assert_eq!(Community::new().with_version(v).version, v);
+}
+
+#[test]
+fn community_avg_bag_value_returns_zero_for_empty_community() {
+    assert_eq!(community_avg_bag_value(&Community::new()), 0.0);
+}
+
+#[test]
+fn community_avg_bag_value_single_member() {
+    // GRAPES: value 1.0; two GRAPES → bag_value = 2.0
+    let mut community = Community::new();
+    community.add_member(Member::new("Alice").with_bag(Bag::new().insert(GRAPES).insert(GRAPES)));
+    assert_eq!(community_avg_bag_value(&community), 2.0);
+}
+
+#[test]
+fn community_avg_bag_value_multiple_members() {
+    // Alice: GRAPES ×2 = 2.0; Bob: PEAR ×2 = 6.0; mean = 4.0
+    let mut community = Community::new();
+    community.add_member(Member::new("Alice").with_bag(Bag::new().insert(GRAPES).insert(GRAPES)));
+    community.add_member(Member::new("Bob").with_bag(Bag::new().insert(PEAR).insert(PEAR)));
+    assert_eq!(community_avg_bag_value(&community), 4.0);
 }
 
 #[test]

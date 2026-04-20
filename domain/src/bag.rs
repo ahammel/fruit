@@ -56,6 +56,13 @@ impl Bag {
     }
 }
 
+/// Sum of `fruit.value() × count` for every distinct fruit held in `bag`.
+pub fn bag_value(bag: &Bag) -> f64 {
+    bag.iter()
+        .map(|(fruit, count)| fruit.value() * count as f64)
+        .sum()
+}
+
 #[cfg(test)]
 #[path = "bag_tests.rs"]
 mod tests;

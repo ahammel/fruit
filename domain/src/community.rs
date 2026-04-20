@@ -5,6 +5,7 @@ use newtype_ids_uuid::UuidIdentifier;
 use uuid::Uuid;
 
 use crate::{
+    bag::bag_value,
     event_log::{Effect, SequenceId},
     member::{Member, MemberId},
 };
@@ -109,6 +110,15 @@ impl Community {
             self.version = effect.id;
         }
     }
+}
+
+/// Mean bag value across all members of `community`, or `0.0` if there are no members.
+pub fn community_avg_bag_value(community: &Community) -> f64 {
+    if community.members.is_empty() {
+        return 0.0;
+    }
+    let total: f64 = community.members.values().map(|m| bag_value(&m.bag)).sum();
+    total / community.members.len() as f64
 }
 
 impl Default for Community {

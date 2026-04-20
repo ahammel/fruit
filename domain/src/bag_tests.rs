@@ -1,5 +1,5 @@
 use super::*;
-use crate::fruit::{GRAPES, OLIVE};
+use crate::fruit::{GRAPES, OLIVE, PEAR};
 
 #[test]
 fn insert_and_count() {
@@ -34,6 +34,19 @@ fn total_across_distinct_fruits() {
 fn is_empty_reflects_contents() {
     assert!(Bag::new().is_empty());
     assert!(!Bag::new().insert(GRAPES).is_empty());
+}
+
+#[test]
+fn bag_value_empty_bag_is_zero() {
+    assert_eq!(bag_value(&Bag::new()), 0.0);
+}
+
+#[test]
+fn bag_value_sums_fruit_values_with_counts() {
+    // GRAPES: Standard, rarity 0.0, value = 1.0 × 2 = 2.0
+    // PEAR:   Rare,     rarity 0.0, value = 3.0 × 1 = 3.0
+    let bag = Bag::new().insert(GRAPES).insert(GRAPES).insert(PEAR);
+    assert_eq!(bag_value(&bag), 5.0);
 }
 
 #[test]
