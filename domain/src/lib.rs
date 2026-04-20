@@ -21,4 +21,5 @@ pub mod granter;
 pub mod luck_adjuster;
 pub mod luck_adjustments;
 pub mod member;
+pub mod providence;
 pub mod random_granter;
