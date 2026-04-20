@@ -104,6 +104,77 @@ impl EventLogProvider for InMemoryEventLogRepo {
         records.truncate(limit);
         Ok(records)
     }
+
+    fn get_latest_grant_events(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Event>, Error> {
+        let mut events: Vec<Event> = self
+            .events
+            .read()?
+            .values()
+            .filter(|e| e.community_id == community_id)
+            .filter(|e| {
+                matches!(
+                    e.payload,
+                    fruit_domain::event_log::EventPayload::Grant { .. }
+                )
+            })
+            .cloned()
+            .collect();
+        events.sort_by_key(|e| std::cmp::Reverse(e.id));
+        events.truncate(limit);
+        Ok(events)
+    }
+
+    fn get_latest_gift_records(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Record>, Error> {
+        let effects = self.effects.read()?;
+        let mut records: Vec<Record> = self
+            .events
+            .read()?
+            .values()
+            .filter(|e| e.community_id == community_id)
+            .filter(|e| {
+                matches!(
+                    e.payload,
+                    fruit_domain::event_log::EventPayload::Gift { .. }
+                )
+            })
+            .map(|e| Record {
+                effect: effects.get(&e.id).cloned(),
+                event: e.clone(),
+            })
+            .collect();
+        records.sort_by_key(|r| std::cmp::Reverse(r.sequence_id()));
+        records.truncate(limit);
+        Ok(records)
+    }
+
+    fn get_records_between(
+        &self,
+        community_id: CommunityId,
+        after: SequenceId,
+        before: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        let effects = self.effects.read()?;
+        let mut records: Vec<Record> = self
+            .events
+            .read()?
+            .values()
+            .filter(|e| e.community_id == community_id && e.id > after && e.id < before)
+            .map(|e| Record {
+                effect: effects.get(&e.id).cloned(),
+                event: e.clone(),
+            })
+            .collect();
+        records.sort_by_key(|r| r.sequence_id());
+        Ok(records)
+    }
 }
 
 impl EventLogPersistor for InMemoryEventLogRepo {
@@ -181,6 +252,31 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         before: Option<SequenceId>,
     ) -> Result<Vec<Record>, Error> {
         (*self).get_records_before(community_id, limit, before)
+    }
+
+    fn get_latest_grant_events(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Event>, Error> {
+        (*self).get_latest_grant_events(community_id, limit)
+    }
+
+    fn get_latest_gift_records(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Record>, Error> {
+        (*self).get_latest_gift_records(community_id, limit)
+    }
+
+    fn get_records_between(
+        &self,
+        community_id: CommunityId,
+        after: SequenceId,
+        before: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        (*self).get_records_between(community_id, after, before)
     }
 }
 

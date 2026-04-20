@@ -84,6 +84,24 @@ impl CommunityPersistor for InMemoryCommunityRepo {
 
 impl CommunityRepo for InMemoryCommunityRepo {}
 
+impl CommunityProvider for &InMemoryCommunityRepo {
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error> {
+        (*self).get(id, version)
+    }
+
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error> {
+        (*self).get_latest(id)
+    }
+}
+
+impl CommunityPersistor for &InMemoryCommunityRepo {
+    fn put(&self, community: Community) -> Result<Community, Error> {
+        (*self).put(community)
+    }
+}
+
+impl CommunityRepo for &InMemoryCommunityRepo {}
+
 #[cfg(test)]
 #[path = "community_repo_tests.rs"]
 mod tests;

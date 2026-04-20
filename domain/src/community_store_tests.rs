@@ -6,7 +6,7 @@ use newtype_ids_uuid::UuidIdentifier;
 use super::*;
 use crate::{
     community_repo::{CommunityPersistor, CommunityProvider},
-    event_log::{Effect, Record},
+    event_log::{Effect, Event, Record},
 };
 
 fn err() -> Error {
@@ -84,6 +84,20 @@ impl EventLogProvider for ErrorEventLog {
     ) -> Result<Vec<Record>, Error> {
         Err(err())
     }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Err(err())
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Err(err())
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Err(err())
+    }
 }
 
 // --- mock repo that returns None for get_latest ---
@@ -134,6 +148,20 @@ impl EventLogProvider for EmptyEffectsEventLog {
     ) -> Result<Vec<Record>, Error> {
         Ok(vec![])
     }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
 }
 
 // --- mock event log that returns one effect ---
@@ -162,6 +190,20 @@ impl EventLogProvider for OneEffectEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
     ) -> Result<Vec<Record>, Error> {
         Ok(vec![])
     }
@@ -304,6 +346,20 @@ impl EventLogProvider for MultiPageEffectsEventLog {
         let n = self.call_count.get();
         self.call_count.set(n + 1);
         Ok(if n == 0 { self.effects.clone() } else { vec![] })
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
     }
     fn get_records_before(
         &self,

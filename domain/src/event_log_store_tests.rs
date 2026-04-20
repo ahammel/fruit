@@ -37,6 +37,20 @@ impl EventLogProvider for ErrorRepo {
     ) -> Result<Vec<Record>, Error> {
         Err(err())
     }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Err(err())
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Err(err())
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Err(err())
+    }
 }
 
 impl EventLogPersistor for ErrorRepo {

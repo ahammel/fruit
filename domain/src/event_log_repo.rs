@@ -1,8 +1,7 @@
 use crate::{
     community::CommunityId,
     error::Error,
-    event_log::Event,
-    event_log::{Effect, EventPayload, Record, SequenceId, StateMutation},
+    event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
 };
 
 /// Read port for the event and effect log.
@@ -36,6 +35,29 @@ pub trait EventLogProvider {
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error>;
+
+    /// Returns up to `limit` Grant events for `community_id`, sorted by sequence ID descending.
+    fn get_latest_grant_events(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Event>, Error>;
+
+    /// Returns up to `limit` Gift records for `community_id`, sorted by sequence ID descending.
+    fn get_latest_gift_records(
+        &self,
+        community_id: CommunityId,
+        limit: usize,
+    ) -> Result<Vec<Record>, Error>;
+
+    /// Returns all records for `community_id` with sequence ID strictly between `after` and
+    /// `before`, sorted ascending.
+    fn get_records_between(
+        &self,
+        community_id: CommunityId,
+        after: SequenceId,
+        before: SequenceId,
     ) -> Result<Vec<Record>, Error>;
 }
 

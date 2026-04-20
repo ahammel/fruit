@@ -582,3 +582,220 @@ fn ref_delegates_append_effect() {
         Some(effect)
     );
 }
+
+// --- get_latest_grant_events ---
+
+#[test]
+fn get_latest_grant_events_returns_most_recent_descending() {
+    let log = log();
+    let cid = community_id();
+    log.append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let g2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    let g3 = log
+        .append_event(cid, EventPayload::Grant { count: 3 })
+        .unwrap();
+    let events = log.get_latest_grant_events(cid, 2).unwrap();
+    assert_eq!(events, vec![g3, g2]);
+}
+
+#[test]
+fn get_latest_grant_events_ignores_gift_and_burn() {
+    use fruit_domain::fruit::STRAWBERRY;
+    use fruit_domain::member::MemberId;
+    let log = log();
+    let cid = community_id();
+    let mid = MemberId::new();
+    log.append_event(
+        cid,
+        EventPayload::Gift {
+            sender_id: mid,
+            recipient_id: mid,
+            fruit: STRAWBERRY,
+        },
+    )
+    .unwrap();
+    log.append_event(
+        cid,
+        EventPayload::Burn {
+            member_id: mid,
+            fruits: vec![],
+        },
+    )
+    .unwrap();
+    let grant = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let events = log.get_latest_grant_events(cid, 10).unwrap();
+    assert_eq!(events, vec![grant]);
+}
+
+#[test]
+fn get_latest_grant_events_respects_limit() {
+    let log = log();
+    let cid = community_id();
+    for i in 1..=5 {
+        log.append_event(cid, EventPayload::Grant { count: i })
+            .unwrap();
+    }
+    assert_eq!(log.get_latest_grant_events(cid, 2).unwrap().len(), 2);
+}
+
+// --- get_latest_gift_records ---
+
+#[test]
+fn get_latest_gift_records_returns_most_recent_descending() {
+    use fruit_domain::fruit::STRAWBERRY;
+    use fruit_domain::member::MemberId;
+    let log = log();
+    let cid = community_id();
+    let mid = MemberId::new();
+    log.append_event(
+        cid,
+        EventPayload::Gift {
+            sender_id: mid,
+            recipient_id: mid,
+            fruit: STRAWBERRY,
+        },
+    )
+    .unwrap();
+    let g2 = log
+        .append_event(
+            cid,
+            EventPayload::Gift {
+                sender_id: mid,
+                recipient_id: mid,
+                fruit: STRAWBERRY,
+            },
+        )
+        .unwrap();
+    let records = log.get_latest_gift_records(cid, 10).unwrap();
+    assert_eq!(records.len(), 2);
+    assert!(records[0].sequence_id() > records[1].sequence_id());
+    assert_eq!(records[0].event.id, g2.id);
+}
+
+#[test]
+fn get_latest_gift_records_ignores_grant_and_burn() {
+    use fruit_domain::fruit::STRAWBERRY;
+    use fruit_domain::member::MemberId;
+    let log = log();
+    let cid = community_id();
+    let mid = MemberId::new();
+    log.append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    log.append_event(
+        cid,
+        EventPayload::Burn {
+            member_id: mid,
+            fruits: vec![],
+        },
+    )
+    .unwrap();
+    let gift_event = log
+        .append_event(
+            cid,
+            EventPayload::Gift {
+                sender_id: mid,
+                recipient_id: mid,
+                fruit: STRAWBERRY,
+            },
+        )
+        .unwrap();
+    let eff = log.append_effect(gift_event.id, cid, vec![]).unwrap();
+    let records = log.get_latest_gift_records(cid, 10).unwrap();
+    assert_eq!(
+        records,
+        vec![Record {
+            event: gift_event,
+            effect: Some(eff)
+        }]
+    );
+}
+
+#[test]
+fn get_latest_gift_records_respects_limit() {
+    use fruit_domain::fruit::STRAWBERRY;
+    use fruit_domain::member::MemberId;
+    let log = log();
+    let cid = community_id();
+    let mid = MemberId::new();
+    for _ in 0..5 {
+        log.append_event(
+            cid,
+            EventPayload::Gift {
+                sender_id: mid,
+                recipient_id: mid,
+                fruit: STRAWBERRY,
+            },
+        )
+        .unwrap();
+    }
+    assert_eq!(log.get_latest_gift_records(cid, 3).unwrap().len(), 3);
+}
+
+// --- get_records_between ---
+
+#[test]
+fn get_records_between_returns_ascending_exclusive_bounds() {
+    let log = log();
+    let cid = community_id();
+    let e1 = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let e2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    let e3 = log
+        .append_event(cid, EventPayload::Grant { count: 3 })
+        .unwrap();
+    let e4 = log
+        .append_event(cid, EventPayload::Grant { count: 4 })
+        .unwrap();
+    // ask for records strictly between e1 and e4
+    let records = log.get_records_between(cid, e1.id, e4.id).unwrap();
+    assert_eq!(records.len(), 2);
+    assert_eq!(records[0].event.id, e2.id);
+    assert_eq!(records[1].event.id, e3.id);
+}
+
+#[test]
+fn get_records_between_excludes_endpoints() {
+    let log = log();
+    let cid = community_id();
+    let e1 = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    let e2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    // strictly between e1 and e2 → empty
+    assert!(log
+        .get_records_between(cid, e1.id, e2.id)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn get_records_between_includes_records_with_no_effect() {
+    let log = log();
+    let cid = community_id();
+    let e1 = log
+        .append_event(cid, EventPayload::Grant { count: 1 })
+        .unwrap();
+    log.append_effect(e1.id, cid, vec![]).unwrap();
+    let e2 = log
+        .append_event(cid, EventPayload::Grant { count: 2 })
+        .unwrap();
+    // no effect appended for e2
+    let e3 = log
+        .append_event(cid, EventPayload::Grant { count: 3 })
+        .unwrap();
+    log.append_effect(e3.id, cid, vec![]).unwrap();
+    let records = log.get_records_between(cid, e1.id, e3.id).unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].event.id, e2.id);
+    assert!(records[0].effect.is_none());
+}
