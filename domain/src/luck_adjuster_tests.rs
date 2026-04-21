@@ -163,6 +163,7 @@ fn gift_record_nonempty(
                 sender_id,
                 recipient_id,
                 fruit: GRAPES,
+                message: None,
             },
         },
         effect: Some(Effect {
@@ -196,6 +197,7 @@ fn gift_record_noop(
                 sender_id,
                 recipient_id,
                 fruit: GRAPES,
+                message: None,
             },
         },
         effect: Some(Effect {

@@ -614,6 +614,7 @@ fn get_latest_grant_events_ignores_gift_and_burn() {
             sender_id: mid,
             recipient_id: mid,
             fruit: STRAWBERRY,
+            message: None,
         },
     )
     .unwrap();
@@ -658,6 +659,7 @@ fn get_latest_gift_records_returns_most_recent_descending() {
             sender_id: mid,
             recipient_id: mid,
             fruit: STRAWBERRY,
+            message: None,
         },
     )
     .unwrap();
@@ -668,6 +670,7 @@ fn get_latest_gift_records_returns_most_recent_descending() {
                 sender_id: mid,
                 recipient_id: mid,
                 fruit: STRAWBERRY,
+                message: None,
             },
         )
         .unwrap();
@@ -701,6 +704,7 @@ fn get_latest_gift_records_ignores_grant_and_burn() {
                 sender_id: mid,
                 recipient_id: mid,
                 fruit: STRAWBERRY,
+                message: None,
             },
         )
         .unwrap();
@@ -729,6 +733,7 @@ fn get_latest_gift_records_respects_limit() {
                 sender_id: mid,
                 recipient_id: mid,
                 fruit: STRAWBERRY,
+                message: None,
             },
         )
         .unwrap();
@@ -850,6 +855,7 @@ fn ref_delegates_get_latest_gift_records() {
                 sender_id: mid,
                 recipient_id: mid,
                 fruit: STRAWBERRY,
+                message: None,
             },
         )
         .unwrap();

@@ -71,6 +71,8 @@ pub enum EventPayload {
         recipient_id: MemberId,
         /// The fruit being transferred.
         fruit: Fruit,
+        /// An optional message from the sender to the recipient.
+        message: Option<String>,
     },
     /// Destroy one or more fruits held by `member_id`, granting a community luck bonus.
     ///

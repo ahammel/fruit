@@ -53,6 +53,7 @@ pub fn compute(
                 sender_id,
                 recipient_id,
                 fruit,
+                ..
             } => {
                 let gift_value = fruit.value();
                 *gift_bonus_by_sender.entry(*sender_id).or_insert(0.0) += gift_value;
@@ -138,6 +139,7 @@ fn qp_penalty(recent_gift_records: &[Record]) -> Option<StateMutation> {
             sender_id,
             recipient_id,
             fruit,
+            ..
         } = record.event.payload
         {
             directed_gifts

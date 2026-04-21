@@ -20,7 +20,7 @@ Actions that accumulate between grants:
 
 | Action | Effect |
 |--------|--------|
-| Gifting fruit to another player | +personal luck (gifter), proportional to rarity and value |
+| Gifting fruit to another player | +personal luck (gifter), proportional to rarity and value; an optional free-text message may accompany the gift (cosmetic only) |
 | Burning fruit | +community luck, proportional to rarity and value |
 | Ostentatious gift — gift value greatly exceeds recipient's bag value | −personal luck (gifter) |
 | Ostentatious burn — burn value greatly exceeds community average bag value | −personal luck (burner) |

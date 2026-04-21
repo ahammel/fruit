@@ -230,6 +230,7 @@ fn gift_record(
                 sender_id,
                 recipient_id,
                 fruit: GRAPES,
+                message: None,
             },
         },
         effect: Some(Effect {

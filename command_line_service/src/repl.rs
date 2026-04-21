@@ -216,6 +216,7 @@ fn cmd_gift(
                 sender_id,
                 recipient_id,
                 fruit,
+                message: None,
             },
         )
         .unwrap();

@@ -260,10 +260,13 @@ pub enum EventPayload {
     SetCommunityLuck { luck: u8 },
     SetMemberLuck { member_id: MemberId, luck: u8 },
     /// Transfer one fruit from sender to recipient.
+    /// `message` is an optional free-text note from the sender; purely cosmetic,
+    /// with no effect on luck calculations.
     Gift {
         sender_id: MemberId,
         recipient_id: MemberId,
         fruit: Fruit,
+        message: Option<String>,
     },
     /// Destroy one or more fruits held by `member_id`.
     ///
@@ -794,7 +797,7 @@ both the event log repo and the community repo) and a `RandomGranter` (seeded fr
 | `add <name>` | Add a member (recorded as `AddMember` event + effect) |
 | `remove <name>` | Remove a member by display name (recorded as `RemoveMember` event + effect) |
 | `grant <count>` | Grant N fruits to every member; computes luck adjustments (recorded as `Grant` event + effect) |
-| `gift <from_name> <to_name> <emoji>` | Give one fruit from sender to recipient (recorded as `Gift` event + effect) |
+| `gift <from_name> <to_name> <emoji>` | Give one fruit from sender to recipient (recorded as `Gift` event + effect); no message support in the REPL |
 | `burn <name> <emoji> [<emoji> ...]` | Destroy one or more fruits held by a member (recorded as `Burn` event + effect) |
 | `luck <value>` | Set community luck (float in `[0.0, 1.0]`) |
 | `luck <name> <value>` | Set a member's luck |
