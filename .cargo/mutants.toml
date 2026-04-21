@@ -1,0 +1,27 @@
+# Semantically equivalent mutations — the mutated code produces identical
+# observable behaviour to the original.
+#
+# community_store: `batch.len() > PAGE_SIZE` is always false because
+# `get_effects_after` respects the page-size limit it receives; the loop
+# terminates via the version-advancement guard with the same final state.
+#
+# luck_adjustments qp_penalty:
+#   :col 24 — canonical-pair key ordering: any consistent canonicalization of
+#              an unordered pair preserves qp_count / total_bidirectional.
+#              This is a mathematical invariant — the ratio is homogeneous, so
+#              processing pairs in any order (or from either direction) scales
+#              both numerator and denominator identically.
+#   :col 12 — deduplication `!`: without it the second encounter of each pair
+#              is processed instead of the first; ratio is unchanged (same
+#              invariant as above).
+#   :col 69 — similarity-threshold boundary: killing `< → <=` requires a pair
+#              whose relative-value difference is exactly QP_SIMILARITY_THRESHOLD
+#              (0.2) in IEEE 754. The value formula `base × (1 + rarity/255)` uses
+#              non-terminating binary fractions for non-zero rarity, so this
+#              boundary cannot be achieved with integer rarity values.
+exclude_re = [
+    "community_store\\.rs:\\d+:\\d+: replace < with > in",
+    "luck_adjustments\\.rs:\\d+:24: replace < with .* in qp_penalty",
+    "luck_adjustments\\.rs:\\d+:12: delete ! in qp_penalty",
+    "luck_adjustments\\.rs:\\d+:69: replace < with <= in qp_penalty",
+]

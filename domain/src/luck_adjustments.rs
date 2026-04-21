@@ -37,8 +37,8 @@ pub fn compute(
 
     let mut gift_bonus_by_sender: HashMap<MemberId, f64> = HashMap::new();
     let mut burn_bonus_total: f64 = 0.0;
-    let mut gift_penalty_records: Vec<(MemberId, f64)> = Vec::new();
-    let mut burn_penalty_records: Vec<(MemberId, f64)> = Vec::new();
+    let mut gift_penalty_records: Vec<(MemberId, i16)> = Vec::new();
+    let mut burn_penalty_records: Vec<(MemberId, i16)> = Vec::new();
 
     for record in records_since_last_grant {
         let Some(effect) = record.effect.as_ref() else {
@@ -63,8 +63,9 @@ pub fn compute(
                     .map(|m| bag_value(&m.bag))
                     .unwrap_or(0.0);
                 let excess = gift_value - OSTENTATION_RATIO * recipient_bag_val;
-                if excess > 0.0 {
-                    gift_penalty_records.push((*sender_id, excess));
+                let penalty_delta = -f64_to_i16(excess.max(0.0) * OSTENTATION_SCALE);
+                if penalty_delta != 0 {
+                    gift_penalty_records.push((*sender_id, penalty_delta));
                 }
             }
             EventPayload::Burn { member_id, .. } => {
@@ -81,8 +82,9 @@ pub fn compute(
 
                 let avg = community_avg_bag_value(&running);
                 let excess = burned_value - OSTENTATION_RATIO * avg;
-                if excess > 0.0 {
-                    burn_penalty_records.push((*member_id, excess));
+                let penalty_delta = -f64_to_i16(excess.max(0.0) * OSTENTATION_SCALE);
+                if penalty_delta != 0 {
+                    burn_penalty_records.push((*member_id, penalty_delta));
                 }
             }
             _ => {}
@@ -95,9 +97,7 @@ pub fn compute(
 
     for (member_id, total_value) in gift_bonus_by_sender {
         let delta = f64_to_i16(total_value * GIFT_LUCK_SCALE);
-        if delta > 0 {
-            mutations.push(StateMutation::GiftLuckBonus { member_id, delta });
-        }
+        mutations.push(StateMutation::GiftLuckBonus { member_id, delta });
     }
 
     let burn_delta = f64_to_i16(burn_bonus_total * BURN_LUCK_SCALE);
@@ -105,18 +105,12 @@ pub fn compute(
         mutations.push(StateMutation::BurnLuckBonus { delta: burn_delta });
     }
 
-    for (member_id, excess) in gift_penalty_records {
-        let delta = -f64_to_i16(excess * OSTENTATION_SCALE);
-        if delta != 0 {
-            mutations.push(StateMutation::OstentatiousGiftPenalty { member_id, delta });
-        }
+    for (member_id, delta) in gift_penalty_records {
+        mutations.push(StateMutation::OstentatiousGiftPenalty { member_id, delta });
     }
 
-    for (member_id, excess) in burn_penalty_records {
-        let delta = -f64_to_i16(excess * OSTENTATION_SCALE);
-        if delta != 0 {
-            mutations.push(StateMutation::OstentatiousBurnPenalty { member_id, delta });
-        }
+    for (member_id, delta) in burn_penalty_records {
+        mutations.push(StateMutation::OstentatiousBurnPenalty { member_id, delta });
     }
 
     if let Some(qp) = qp_penalty(recent_gift_records) {

@@ -371,6 +371,96 @@ impl EventLogProvider for MultiPageEffectsEventLog {
     }
 }
 
+// --- mock event log that returns exactly EFFECTS_PAGE_SIZE effects on the first
+//     call, then one more effect on the second call, then empty thereafter ---
+
+struct TwoPageEffectsEventLog {
+    first_page: Vec<Effect>,
+    second_page: Vec<Effect>,
+    call_count: Cell<usize>,
+}
+
+impl TwoPageEffectsEventLog {
+    fn new(community_id: CommunityId) -> Self {
+        let first_page = (1..=EFFECTS_PAGE_SIZE as u64)
+            .map(|i| Effect {
+                id: SequenceId::new(i),
+                community_id,
+                mutations: vec![],
+            })
+            .collect();
+        let second_page = vec![Effect {
+            id: SequenceId::new(EFFECTS_PAGE_SIZE as u64 + 1),
+            community_id,
+            mutations: vec![],
+        }];
+        Self {
+            first_page,
+            second_page,
+            call_count: Cell::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for TwoPageEffectsEventLog {
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
+        let n = self.call_count.get();
+        self.call_count.set(n + 1);
+        Ok(match n {
+            0 => self.first_page.clone(),
+            1 => self.second_page.clone(),
+            _ => vec![],
+        })
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn get_latest_paginates_through_effects_spanning_two_full_pages() {
+    // First page is exactly EFFECTS_PAGE_SIZE (loop must continue); second page has
+    // one more effect. Final version must be PAGE_SIZE+1, not PAGE_SIZE — killing
+    // the `< → <=` mutation which would stop after the first page.
+    let community = Community::new();
+    let id = community.id;
+    let event_log = TwoPageEffectsEventLog::new(id);
+    let expected_version = SequenceId::new(EFFECTS_PAGE_SIZE as u64 + 1);
+    let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
+    let result = store.get_latest(id).unwrap().unwrap();
+    assert_eq!(result.version, expected_version);
+}
+
 #[test]
 fn get_latest_paginates_through_all_effects() {
     // Covers the loop-continues branch: the first page is exactly EFFECTS_PAGE_SIZE,

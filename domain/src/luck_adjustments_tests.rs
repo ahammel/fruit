@@ -3,7 +3,7 @@ use crate::{
     bag::Bag,
     community::Community,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
-    fruit::{Fruit, GRAPES, MANGO, MELON},
+    fruit::{Fruit, GRAPES, MANGO, MELON, TOMATO},
     member::{Member, MemberId},
 };
 
@@ -405,4 +405,96 @@ fn qp_gift_with_absent_effect_is_skipped() {
     };
     let result = compute(&community, &[], &[r_ab, r_ba]);
     assert_eq!(result, vec![]);
+}
+
+// --- ostentation boundary: excess == 0 emits no penalty ---
+
+#[test]
+fn gift_at_exact_ostentation_boundary_emits_no_penalty() {
+    // MANGO value=10.0; recipient holds 5 GRAPES (bag_value=5.0)
+    // excess = 10.0 - 2.0*5.0 = 0.0 → no OstentatiousGiftPenalty
+    let mut community = Community::new();
+    let sender = Member::new("Alice");
+    let recipient = Member::new("Bob").with_bag(
+        Bag::new()
+            .insert(GRAPES)
+            .insert(GRAPES)
+            .insert(GRAPES)
+            .insert(GRAPES)
+            .insert(GRAPES),
+    );
+    community.add_member(sender.clone());
+    community.add_member(recipient.clone());
+
+    let record = gift_record(1, &community, &sender, &recipient, MANGO, true);
+    let result = compute(&community, &[record], &[]);
+
+    assert_eq!(
+        result,
+        vec![StateMutation::GiftLuckBonus {
+            member_id: sender.id,
+            delta: 100
+        }]
+    );
+}
+
+#[test]
+fn burn_at_exact_ostentation_boundary_emits_no_penalty() {
+    // burner holds MANGO (value=10.0) in the snapshot; other has empty bag
+    // avg = (10.0 + 0.0) / 2 = 5.0; excess = 10.0 - 2.0*5.0 = 0.0 → no penalty
+    let mut community = Community::new();
+    let burner = Member::new("Alice").with_bag(Bag::new().insert(MANGO));
+    let other = Member::new("Bob");
+    community.add_member(burner.clone());
+    community.add_member(other.clone());
+
+    let record = burn_record(1, &community, &burner, vec![MANGO], true);
+    let result = compute(&community, &[record], &[]);
+
+    assert_eq!(result, vec![StateMutation::BurnLuckBonus { delta: 100 }]);
+}
+
+// --- qp_penalty: division vs multiplication / modulo ---
+
+#[test]
+fn mango_tomato_reciprocal_gifts_emit_qp_penalty() {
+    // MANGO value=10.0, TOMATO value=10*(1+36/255)≈11.412
+    // |10.0-11.412|/11.412 ≈ 0.124 < 0.2 → QP
+    // With `/ → *`: 1.412*11.412≈16.1 > 0.2 → no QP (mutation caught)
+    // With `/ → %`: 1.412%11.412=1.412 > 0.2 → no QP (mutation caught)
+    let community = Community::new();
+    let alice = Member::new("Alice");
+    let bob = Member::new("Bob");
+
+    let r_ab = gift_record(1, &community, &alice, &bob, MANGO, true);
+    let r_ba = gift_record(2, &community, &bob, &alice, TOMATO, true);
+    let result = compute(&community, &[], &[r_ab, r_ba]);
+
+    assert_eq!(
+        result,
+        vec![StateMutation::QuidProQuoPenalty { delta: -64 }]
+    );
+}
+
+#[test]
+fn partial_qp_ratio_emits_scaled_penalty() {
+    // 2 bidirectional pairs: MANGO↔TOMATO (QP) + MANGO↔GRAPES (non-QP: |10-1|/10=0.9)
+    // qp_count=1, total=2, ratio=0.5 → delta = -(0.5*64).round() = -32
+    // With `/ → *`: ratio=1*2=2 → delta = -(2*64).round() = -128 (caught)
+    let community = Community::new();
+    let alice = Member::new("Alice");
+    let bob = Member::new("Bob");
+    let carol = Member::new("Carol");
+    let dave = Member::new("Dave");
+
+    let r_ab = gift_record(1, &community, &alice, &bob, MANGO, true);
+    let r_ba = gift_record(2, &community, &bob, &alice, TOMATO, true);
+    let r_cd = gift_record(3, &community, &carol, &dave, MANGO, true);
+    let r_dc = gift_record(4, &community, &dave, &carol, GRAPES, true);
+    let result = compute(&community, &[], &[r_ab, r_ba, r_cd, r_dc]);
+
+    assert_eq!(
+        result,
+        vec![StateMutation::QuidProQuoPenalty { delta: -32 }]
+    );
 }
