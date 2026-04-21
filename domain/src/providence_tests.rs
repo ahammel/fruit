@@ -367,6 +367,104 @@ impl Granter for CapturingGranter {
     }
 }
 
+// ── event log with one orphaned grant (event written, no effect yet) ─────────
+
+struct OrphanedGrantLog {
+    orphaned: Event,
+    /// Set to true if append_event is called (it should not be on retry).
+    new_event_appended: Arc<Mutex<bool>>,
+}
+
+impl OrphanedGrantLog {
+    fn new(community_id: CommunityId) -> (Self, Arc<Mutex<bool>>) {
+        let flag = Arc::new(Mutex::new(false));
+        let log = Self {
+            orphaned: Event {
+                id: SequenceId::new(1),
+                community_id,
+                payload: EventPayload::Grant { count: 1 },
+            },
+            new_event_appended: flag.clone(),
+        };
+        (log, flag)
+    }
+}
+
+impl EventLogProvider for OrphanedGrantLog {
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+        Ok(None)
+    }
+
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+        Ok(None)
+    }
+
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Error> {
+        Ok(vec![])
+    }
+
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+        Ok(vec![self.orphaned.clone()])
+    }
+
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Error> {
+        Ok(vec![])
+    }
+}
+
+impl EventLogPersistor for OrphanedGrantLog {
+    fn append_event(
+        &self,
+        community_id: CommunityId,
+        payload: EventPayload,
+    ) -> Result<Event, Error> {
+        *self.new_event_appended.lock().unwrap() = true;
+        Ok(Event {
+            id: SequenceId::new(2),
+            community_id,
+            payload,
+        })
+    }
+
+    fn append_effect(
+        &self,
+        event_id: SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<StateMutation>,
+    ) -> Result<Effect, Error> {
+        Ok(Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        })
+    }
+}
+
+impl EventLogRepo for OrphanedGrantLog {}
+
 // ── tests ──────────────────────────────────────────────────────────────────
 
 #[test]
@@ -412,4 +510,23 @@ fn event_log_error_propagates() {
     let mut providence = Providence::new(ErrorEventLog, NoneProvider, granter);
 
     assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+#[test]
+fn orphaned_grant_is_completed_without_appending_new_event() {
+    // Simulate a crash between append_event(Grant) and append_effect: an orphaned
+    // Grant event exists (id=1) with no effect. On retry, grant_fruit should
+    // resume the orphaned event rather than appending a second Grant event.
+    let community = Community::new();
+    let (event_log, new_event_appended) = OrphanedGrantLog::new(community.id);
+    let (granter, _) = CapturingGranter::new(vec![StateMutation::BurnLuckBonus { delta: 7 }]);
+    let mut providence = Providence::new(event_log, NoneProvider, granter);
+
+    let result = providence.grant_fruit(&community, 1).unwrap();
+
+    assert!(
+        !*new_event_appended.lock().unwrap(),
+        "should resume orphaned grant, not append a new event"
+    );
+    assert_eq!(result, vec![StateMutation::BurnLuckBonus { delta: 7 }]);
 }

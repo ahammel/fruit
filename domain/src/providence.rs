@@ -33,37 +33,55 @@ impl<ELR: EventLogRepo, CP: CommunityProvider, G: Granter> Providence<ELR, CP, G
     /// Appends a Grant event, computes and applies luck adjustments, calls the
     /// granter, appends the combined effect, and returns all mutations.
     ///
+    /// **Idempotent retry**: if the most recent Grant event for this community
+    /// has no corresponding effect (e.g. because a previous call crashed between
+    /// appending the event and writing the effect), this method resumes that
+    /// orphaned grant rather than appending a new one. Callers can safely retry
+    /// `grant_fruit` on failure without producing duplicate grant events.
+    ///
     /// `&mut self` is required because [`Granter::grant`] takes `&mut self`.
     ///
     /// Order of operations:
-    /// 1. Fetch the previous grant to establish the luck-adjustment window.
-    /// 2. Append the Grant event (establishing its sequence ID).
-    /// 3. Fetch records between the previous and current grants.
-    /// 4. Compute luck mutations.
-    /// 5. Apply luck mutations to a community snapshot.
-    /// 6. Call `granter.grant` on the adjusted snapshot.
-    /// 7. Persist the combined effect.
+    /// 1. Fetch the two most recent grants. If the latest has no effect, resume
+    ///    it; otherwise append a new Grant event.
+    /// 2. Fetch records between the previous and current grants.
+    /// 3. Compute luck mutations.
+    /// 4. Apply luck mutations to a community snapshot.
+    /// 5. Call `granter.grant` on the adjusted snapshot.
+    /// 6. Persist the combined effect.
     pub fn grant_fruit(
         &mut self,
         community: &Community,
         count: usize,
     ) -> Result<Vec<StateMutation>, Error> {
-        let prev_grant_id = self
-            .event_log
-            .get_latest_grant_events(community.id, 1)?
-            .into_iter()
-            .next()
-            .map(|e| e.id)
-            .unwrap_or_else(SequenceId::zero);
+        let recent_grants = self.event_log.get_latest_grant_events(community.id, 2)?;
+
+        let latest_is_orphaned = match recent_grants.first() {
+            Some(e) => self.event_log.get_effect_for_event(e.id)?.is_none(),
+            None => false,
+        };
+
+        let (grant_event, prev_grant_id) = if latest_is_orphaned {
+            let prev = recent_grants
+                .get(1)
+                .map(|e| e.id)
+                .unwrap_or_else(SequenceId::zero);
+            (recent_grants[0].clone(), prev)
+        } else {
+            let prev = recent_grants
+                .first()
+                .map(|e| e.id)
+                .unwrap_or_else(SequenceId::zero);
+            let event = self
+                .event_log
+                .append_event(community.id, EventPayload::Grant { count })?;
+            (event, prev)
+        };
 
         let community_at_last_grant = self
             .community_provider
             .get(community.id, prev_grant_id)?
             .unwrap_or_else(|| Community::new().with_id(community.id));
-
-        let grant_event = self
-            .event_log
-            .append_event(community.id, EventPayload::Grant { count })?;
 
         let records_since_last_grant =
             self.event_log

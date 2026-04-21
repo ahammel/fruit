@@ -206,6 +206,7 @@ fn store_get_latest_applies_multiple_pending_effects() {
             id,
             EventPayload::AddMember {
                 display_name: "Alice".to_string(),
+                member_id: alice_id,
             },
         )
         .unwrap();

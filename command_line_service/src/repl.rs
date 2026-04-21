@@ -104,6 +104,7 @@ fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, ar
             id,
             EventPayload::AddMember {
                 display_name: name.clone(),
+                member_id: member.id,
             },
         )
         .unwrap();
