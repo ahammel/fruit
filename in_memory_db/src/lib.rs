@@ -6,4 +6,5 @@
 //! command-line REPL; not suitable for production persistence.
 
 pub mod community_repo;
+pub mod error;
 pub mod event_log_repo;

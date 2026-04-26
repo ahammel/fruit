@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use exn::Exn;
 use newtype_ids_uuid::UuidIdentifier as _;
 
 use super::*;
@@ -31,11 +32,12 @@ impl StubEventLog {
 }
 
 impl EventLogProvider for StubEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -44,7 +46,7 @@ impl EventLogProvider for StubEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -53,15 +55,15 @@ impl EventLogProvider for StubEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
 
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -70,17 +72,18 @@ impl EventLogProvider for StubEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
 
 impl EventLogPersistor for StubEventLog {
+    type Error = Error;
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<Error>> {
         let mut n = self.next_id.lock().unwrap();
         *n += 1;
         Ok(Event {
@@ -95,7 +98,7 @@ impl EventLogPersistor for StubEventLog {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         Ok(Effect {
             id: event_id,
             community_id,
@@ -131,11 +134,12 @@ impl GiftBetweenGrantsLog {
 }
 
 impl EventLogProvider for GiftBetweenGrantsLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -144,7 +148,7 @@ impl EventLogProvider for GiftBetweenGrantsLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -153,15 +157,15 @@ impl EventLogProvider for GiftBetweenGrantsLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
 
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![gift_record(
             self.community_id,
             1,
@@ -175,7 +179,7 @@ impl EventLogProvider for GiftBetweenGrantsLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![gift_record(
             self.community_id,
             1,
@@ -186,11 +190,12 @@ impl EventLogProvider for GiftBetweenGrantsLog {
 }
 
 impl EventLogPersistor for GiftBetweenGrantsLog {
+    type Error = Error;
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<Error>> {
         let mut n = self.next_id.lock().unwrap();
         *n += 1;
         Ok(Event {
@@ -205,7 +210,7 @@ impl EventLogPersistor for GiftBetweenGrantsLog {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         Ok(Effect {
             id: event_id,
             community_id,
@@ -255,12 +260,13 @@ fn gift_record(
 struct ErrorEventLog;
 
 impl EventLogProvider for ErrorEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
-        Err(io::Error::other("err").into())
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
-        Err(io::Error::other("err").into())
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
     fn get_effects_after(
@@ -268,8 +274,8 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
-        Err(io::Error::other("err").into())
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
     fn get_records_before(
@@ -277,16 +283,16 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
-        Err(io::Error::other("err").into())
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
-        Err(io::Error::other("err").into())
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
-        Err(io::Error::other("err").into())
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
     fn get_records_between(
@@ -294,14 +300,15 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
-        Err(io::Error::other("err").into())
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 }
 
 impl EventLogPersistor for ErrorEventLog {
-    fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Error> {
-        Err(io::Error::other("err").into())
+    type Error = Error;
+    fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 
     fn append_effect(
@@ -309,8 +316,8 @@ impl EventLogPersistor for ErrorEventLog {
         _: SequenceId,
         _: CommunityId,
         _: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
-        Err(io::Error::other("err").into())
+    ) -> Result<Effect, Exn<Error>> {
+        Err(Exn::new(io::Error::other("err").into()))
     }
 }
 
@@ -321,17 +328,19 @@ impl EventLogRepo for ErrorEventLog {}
 struct NoneProvider;
 
 impl CommunityProvider for NoneProvider {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
 }
 
 impl CommunityPersistor for NoneProvider {
-    fn put(&self, c: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -391,11 +400,12 @@ impl OrphanedGrantLog {
 }
 
 impl EventLogProvider for OrphanedGrantLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -404,7 +414,7 @@ impl EventLogProvider for OrphanedGrantLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -413,15 +423,15 @@ impl EventLogProvider for OrphanedGrantLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![self.orphaned.clone()])
     }
 
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -430,17 +440,18 @@ impl EventLogProvider for OrphanedGrantLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
 
 impl EventLogPersistor for OrphanedGrantLog {
+    type Error = Error;
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<Error>> {
         *self.new_event_appended.lock().unwrap() = true;
         Ok(Event {
             id: SequenceId::new(2),
@@ -454,7 +465,7 @@ impl EventLogPersistor for OrphanedGrantLog {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         Ok(Effect {
             id: event_id,
             community_id,

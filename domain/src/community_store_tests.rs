@@ -1,16 +1,18 @@
 use std::{cell::Cell, io};
 
+use exn::Exn;
 use newtype_ids::IntegerIdentifier;
 use newtype_ids_uuid::UuidIdentifier;
 
 use super::*;
 use crate::{
     community_repo::{CommunityPersistor, CommunityProvider},
+    error::Error,
     event_log::{Effect, Event, Record},
 };
 
-fn err() -> Error {
-    io::Error::other("test error").into()
+fn err() -> Exn<Error> {
+    Exn::new(io::Error::other("test error").into())
 }
 
 // --- mock repo that always errors ---
@@ -18,16 +20,18 @@ fn err() -> Error {
 struct ErrorRepo;
 
 impl CommunityProvider for ErrorRepo {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Err(err())
     }
 }
 
 impl CommunityPersistor for ErrorRepo {
-    fn put(&self, _: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
         Err(err())
     }
 }
@@ -41,16 +45,18 @@ struct GetOkPutErrorRepo {
 }
 
 impl CommunityProvider for GetOkPutErrorRepo {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(Some(self.community.clone()))
     }
 }
 
 impl CommunityPersistor for GetOkPutErrorRepo {
-    fn put(&self, _: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
         Err(err())
     }
 }
@@ -62,10 +68,11 @@ impl CommunityRepo for GetOkPutErrorRepo {}
 struct ErrorEventLog;
 
 impl EventLogProvider for ErrorEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_effects_after(
@@ -73,7 +80,7 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_records_before(
@@ -81,13 +88,13 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
     fn get_records_between(
@@ -95,7 +102,7 @@ impl EventLogProvider for ErrorEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
 }
@@ -105,16 +112,18 @@ impl EventLogProvider for ErrorEventLog {
 struct NoneLatestRepo;
 
 impl CommunityProvider for NoneLatestRepo {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
 }
 
 impl CommunityPersistor for NoneLatestRepo {
-    fn put(&self, c: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -126,10 +135,11 @@ impl CommunityRepo for NoneLatestRepo {}
 struct EmptyEffectsEventLog;
 
 impl EventLogProvider for EmptyEffectsEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -137,7 +147,7 @@ impl EventLogProvider for EmptyEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_before(
@@ -145,13 +155,13 @@ impl EventLogProvider for EmptyEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_between(
@@ -159,7 +169,7 @@ impl EventLogProvider for EmptyEffectsEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
@@ -171,10 +181,11 @@ struct OneEffectEventLog {
 }
 
 impl EventLogProvider for OneEffectEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -182,7 +193,7 @@ impl EventLogProvider for OneEffectEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![self.effect.clone()])
     }
     fn get_records_before(
@@ -190,13 +201,13 @@ impl EventLogProvider for OneEffectEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_between(
@@ -204,7 +215,7 @@ impl EventLogProvider for OneEffectEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
@@ -290,16 +301,18 @@ struct GetOkPutOkRepo {
 }
 
 impl CommunityProvider for GetOkPutOkRepo {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(Some(self.community.clone()))
     }
 }
 
 impl CommunityPersistor for GetOkPutOkRepo {
-    fn put(&self, c: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -331,10 +344,11 @@ impl MultiPageEffectsEventLog {
 }
 
 impl EventLogProvider for MultiPageEffectsEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -342,15 +356,15 @@ impl EventLogProvider for MultiPageEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         let n = self.call_count.get();
         self.call_count.set(n + 1);
         Ok(if n == 0 { self.effects.clone() } else { vec![] })
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_between(
@@ -358,7 +372,7 @@ impl EventLogProvider for MultiPageEffectsEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_before(
@@ -366,7 +380,7 @@ impl EventLogProvider for MultiPageEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
@@ -403,10 +417,11 @@ impl TwoPageEffectsEventLog {
 }
 
 impl EventLogProvider for TwoPageEffectsEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -414,7 +429,7 @@ impl EventLogProvider for TwoPageEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         let n = self.call_count.get();
         self.call_count.set(n + 1);
         Ok(match n {
@@ -423,10 +438,10 @@ impl EventLogProvider for TwoPageEffectsEventLog {
             _ => vec![],
         })
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_between(
@@ -434,7 +449,7 @@ impl EventLogProvider for TwoPageEffectsEventLog {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
     fn get_records_before(
@@ -442,7 +457,7 @@ impl EventLogProvider for TwoPageEffectsEventLog {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 }
@@ -461,6 +476,76 @@ fn get_latest_paginates_through_effects_spanning_two_full_pages() {
     assert_eq!(result.version, expected_version);
 }
 
+// --- mock event log that returns exactly EFFECTS_PAGE_SIZE effects on the first
+//     call, then errors on the second call ---
+
+struct FirstPageThenErrorEventLog {
+    effects: Vec<Effect>,
+    call_count: Cell<usize>,
+}
+
+impl FirstPageThenErrorEventLog {
+    fn new(community_id: CommunityId) -> Self {
+        let effects = (1..=EFFECTS_PAGE_SIZE as u64)
+            .map(|i| Effect {
+                id: SequenceId::new(i),
+                community_id,
+                mutations: vec![],
+            })
+            .collect();
+        Self {
+            effects,
+            call_count: Cell::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for FirstPageThenErrorEventLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        let n = self.call_count.get();
+        self.call_count.set(n + 1);
+        if n == 0 {
+            Ok(self.effects.clone())
+        } else {
+            Err(err())
+        }
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+}
+
 #[test]
 fn get_latest_paginates_through_all_effects() {
     // Covers the loop-continues branch: the first page is exactly EFFECTS_PAGE_SIZE,
@@ -472,4 +557,17 @@ fn get_latest_paginates_through_all_effects() {
     let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
     let result = store.get_latest(id).unwrap().unwrap();
     assert_eq!(result.version, expected_version);
+}
+
+#[test]
+fn get_latest_error_on_second_batch_includes_batch_number_in_message() {
+    let community = Community::new();
+    let id = community.id;
+    let event_log = FirstPageThenErrorEventLog::new(id);
+    let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
+    let err = store.get_latest(id).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Storage layer error: failed to retrieve effects for community at batch number 1"
+    );
 }

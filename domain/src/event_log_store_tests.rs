@@ -1,24 +1,27 @@
 use std::io;
 
+use exn::Exn;
 use newtype_ids_uuid::UuidIdentifier;
 
 use super::*;
 use crate::{
+    error::Error,
     event_log::Record,
     event_log_repo::{EventLogPersistor, EventLogProvider},
 };
 
-fn err() -> Error {
-    io::Error::other("test error").into()
+fn err() -> Exn<Error> {
+    Exn::new(io::Error::other("test error").into())
 }
 
 struct ErrorRepo;
 
 impl EventLogProvider for ErrorRepo {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_effects_after(
@@ -26,7 +29,7 @@ impl EventLogProvider for ErrorRepo {
         _: CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_records_before(
@@ -34,13 +37,13 @@ impl EventLogProvider for ErrorRepo {
         _: CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Error> {
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Error> {
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
     fn get_records_between(
@@ -48,13 +51,14 @@ impl EventLogProvider for ErrorRepo {
         _: CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
 }
 
 impl EventLogPersistor for ErrorRepo {
-    fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Error> {
+    type Error = Error;
+    fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Exn<Error>> {
         Err(err())
     }
     fn append_effect(
@@ -62,7 +66,7 @@ impl EventLogPersistor for ErrorRepo {
         _: SequenceId,
         _: CommunityId,
         _: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         Err(err())
     }
 }

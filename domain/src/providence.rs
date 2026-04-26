@@ -1,11 +1,12 @@
+use exn::Exn;
 use newtype_ids::IntegerIdentifier as _;
 
 use crate::{
     community::Community,
     community_repo::CommunityProvider,
-    error::Error,
+    error::DbError,
     event_log::{Effect, EventPayload, SequenceId, StateMutation},
-    event_log_repo::EventLogRepo,
+    event_log_repo::{EventLogProvider, EventLogRepo},
     granter::Granter,
     luck_adjustments,
 };
@@ -20,7 +21,13 @@ pub struct Providence<ELR: EventLogRepo, CP: CommunityProvider, G: Granter> {
     granter: G,
 }
 
-impl<ELR: EventLogRepo, CP: CommunityProvider, G: Granter> Providence<ELR, CP, G> {
+impl<E, ELR, CP, G> Providence<ELR, CP, G>
+where
+    E: DbError,
+    ELR: EventLogRepo + EventLogProvider<Error = E>,
+    CP: CommunityProvider<Error = E>,
+    G: Granter,
+{
     /// Creates a new `Providence`.
     pub fn new(event_log: ELR, community_provider: CP, granter: G) -> Self {
         Self {
@@ -53,7 +60,7 @@ impl<ELR: EventLogRepo, CP: CommunityProvider, G: Granter> Providence<ELR, CP, G
         &mut self,
         community: &Community,
         count: usize,
-    ) -> Result<Vec<StateMutation>, Error> {
+    ) -> Result<Vec<StateMutation>, Exn<E>> {
         let recent_grants = self.event_log.get_latest_grant_events(community.id, 2)?;
 
         let latest_is_orphaned = match recent_grants.first() {

@@ -3,7 +3,12 @@ name = "fruit-in-memory-db"
 version = "0.1.0"
 edition = "2021"
 
+[dev-dependencies]
+regex = "1"
+
 [dependencies]
+anomalies = "0.2"
+exn = "0.3.0"
 fruit-domain = { path = "../domain" }
 newtype-ids = "0.1"
 newtype-ids-uuid = "0.1"

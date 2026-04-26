@@ -1,12 +1,14 @@
 use super::*;
 use crate::event_log_repo::InMemoryEventLogRepo;
+use exn::Exn;
 use fruit_domain::{
     community_repo::{CommunityPersistor, CommunityProvider},
     community_store::{CommunityStore, EFFECTS_PAGE_SIZE},
-    error::Error,
     event_log::EventPayload,
     event_log_repo::EventLogPersistor,
 };
+use newtype_ids::IntegerIdentifier;
+use newtype_ids_uuid::UuidIdentifier;
 
 fn repo() -> InMemoryCommunityRepo {
     InMemoryCommunityRepo::new()
@@ -270,21 +272,21 @@ fn via_provider_get<T: CommunityProvider>(
     p: T,
     id: CommunityId,
     version: SequenceId,
-) -> Result<Option<Community>, Error> {
+) -> Result<Option<Community>, Exn<T::Error>> {
     p.get(id, version)
 }
 
 fn via_provider_get_latest<T: CommunityProvider>(
     p: T,
     id: CommunityId,
-) -> Result<Option<Community>, Error> {
+) -> Result<Option<Community>, Exn<T::Error>> {
     p.get_latest(id)
 }
 
 fn via_persistor_put<T: CommunityPersistor>(
     p: T,
     community: Community,
-) -> Result<Community, Error> {
+) -> Result<Community, Exn<T::Error>> {
     p.put(community)
 }
 

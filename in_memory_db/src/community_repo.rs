@@ -1,18 +1,17 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    io,
     sync::RwLock,
 };
 
-use newtype_ids::IntegerIdentifier;
-use newtype_ids_uuid::UuidIdentifier;
+use exn::Exn;
 
 use fruit_domain::{
     community::{Community, CommunityId},
     community_repo::{CommunityPersistor, CommunityProvider, CommunityRepo},
-    error::Error,
     event_log::SequenceId,
 };
+
+use crate::error::{AlreadyExists, Error, Lock, LockPoisoned};
 
 /// In-memory implementation of [`CommunityRepo`].
 ///
@@ -43,19 +42,23 @@ impl Default for InMemoryCommunityRepo {
 }
 
 impl CommunityProvider for InMemoryCommunityRepo {
-    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self
             .store
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::CommunityRead))?
             .get(&id)
             .and_then(|versions| versions.get(&version))
             .cloned())
     }
 
-    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self
             .store
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::CommunityRead))?
             .get(&id)
             .and_then(|versions| versions.values().next_back())
             .cloned())
@@ -63,19 +66,16 @@ impl CommunityProvider for InMemoryCommunityRepo {
 }
 
 impl CommunityPersistor for InMemoryCommunityRepo {
-    fn put(&self, community: Community) -> Result<Community, Error> {
-        let mut store = self.store.write()?;
+    type Error = Error;
+
+    fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
+        let mut store = self
+            .store
+            .write()
+            .map_err(|e| LockPoisoned::build(&e, Lock::CommunityWrite))?;
         let versions = store.entry(community.id).or_default();
         if versions.contains_key(&community.version) {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!(
-                    "community {} already has a snapshot at version {}",
-                    community.id.as_uuid(),
-                    community.version.as_u64(),
-                ),
-            )
-            .into());
+            return Err(AlreadyExists::community(&community).into());
         }
         versions.insert(community.version, community.clone());
         Ok(community)
@@ -85,17 +85,21 @@ impl CommunityPersistor for InMemoryCommunityRepo {
 impl CommunityRepo for InMemoryCommunityRepo {}
 
 impl CommunityProvider for &InMemoryCommunityRepo {
-    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+
+    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         (*self).get(id, version)
     }
 
-    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         (*self).get_latest(id)
     }
 }
 
 impl CommunityPersistor for &InMemoryCommunityRepo {
-    fn put(&self, community: Community) -> Result<Community, Error> {
+    type Error = Error;
+
+    fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
         (*self).put(community)
     }
 }

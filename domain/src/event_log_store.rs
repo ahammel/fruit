@@ -4,10 +4,12 @@ use newtype_ids::IntegerIdentifier;
 
 use crate::{
     community::CommunityId,
-    error::Error,
+    error::DbError,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
-    event_log_repo::EventLogRepo,
+    event_log_repo::{EventLogProvider, EventLogRepo},
 };
+
+use exn::Exn;
 
 /// Reads and writes the event and effect log via an [`EventLogRepo`].
 pub struct EventLogStore<ELR: EventLogRepo> {
@@ -15,19 +17,19 @@ pub struct EventLogStore<ELR: EventLogRepo> {
 }
 
 #[bon]
-impl<ELR: EventLogRepo> EventLogStore<ELR> {
+impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<ELR> {
     /// Creates a new `EventLogStore` backed by `repo`.
     pub fn new(repo: ELR) -> Self {
         Self { repo }
     }
 
     /// Returns the log entry at `id`, or `None` if not found.
-    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
+    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<E>> {
         self.repo.get_record(id)
     }
 
     /// Returns the effect with the given ID (equal to its originating event's ID), or `None` if not yet processed.
-    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
+    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<E>> {
         self.repo.get_effect_for_event(event_id)
     }
 
@@ -40,7 +42,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         community_id: CommunityId,
         limit: usize,
         #[builder(default = SequenceId::zero())] after: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<E>> {
         self.repo.get_effects_after(community_id, limit, after)
     }
 
@@ -54,7 +56,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<E>> {
         self.repo.get_records_before(community_id, limit, before)
     }
 
@@ -63,7 +65,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<E>> {
         self.repo.append_event(community_id, payload)
     }
 
@@ -73,7 +75,7 @@ impl<ELR: EventLogRepo> EventLogStore<ELR> {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<E>> {
         self.repo.append_effect(event_id, community_id, mutations)
     }
 }

@@ -1,9 +1,10 @@
+use exn::Exn;
 use newtype_ids::IntegerIdentifier as _;
 
 use crate::{
     community::Community,
     community_repo::CommunityProvider,
-    error::Error,
+    error::DbError,
     event_log::{SequenceId, StateMutation},
     event_log_repo::EventLogProvider,
     luck_adjustments,
@@ -18,7 +19,12 @@ pub struct LuckAdjuster<ELP: EventLogProvider, CP: CommunityProvider> {
     community_provider: CP,
 }
 
-impl<ELP: EventLogProvider, CP: CommunityProvider> LuckAdjuster<ELP, CP> {
+impl<E, ELP, CP> LuckAdjuster<ELP, CP>
+where
+    E: DbError,
+    ELP: EventLogProvider<Error = E>,
+    CP: CommunityProvider<Error = E>,
+{
     /// Creates a new `LuckAdjuster`.
     pub fn new(event_log: ELP, community_provider: CP) -> Self {
         Self {
@@ -38,7 +44,7 @@ impl<ELP: EventLogProvider, CP: CommunityProvider> LuckAdjuster<ELP, CP> {
         &self,
         community: &Community,
         before: SequenceId,
-    ) -> Result<Vec<StateMutation>, Error> {
+    ) -> Result<Vec<StateMutation>, Exn<E>> {
         let prev_grant_id = self
             .event_log
             .get_latest_grant_events(community.id, 1)?

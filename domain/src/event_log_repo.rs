@@ -1,17 +1,25 @@
+use exn::Exn;
+
 use crate::{
     community::CommunityId,
-    error::Error,
+    error::DbError,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
 };
 
 /// Read port for the event and effect log.
 pub trait EventLogProvider {
+    /// The error type returned by storage operations.
+    type Error: DbError;
+
     /// Returns the log entry at `id`, or `None` if not found.
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error>;
+    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Self::Error>>;
 
     /// Returns the effect with the given ID (equal to its originating event's ID),
     /// or `None` if the event has not yet been processed.
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
+    fn get_effect_for_event(
+        &self,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Self::Error>>;
 
     /// Returns up to `limit` effects for `community_id` whose sequence ID is strictly
     /// greater than `after`, sorted by sequence ID ascending.
@@ -23,7 +31,7 @@ pub trait EventLogProvider {
         community_id: CommunityId,
         limit: usize,
         after: SequenceId,
-    ) -> Result<Vec<Effect>, Error>;
+    ) -> Result<Vec<Effect>, Exn<Self::Error>>;
 
     /// Returns up to `limit` records for `community_id` whose sequence ID is strictly less
     /// than `before`, sorted by sequence ID descending. Each entry pairs the event with
@@ -35,21 +43,21 @@ pub trait EventLogProvider {
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error>;
+    ) -> Result<Vec<Record>, Exn<Self::Error>>;
 
     /// Returns up to `limit` Grant events for `community_id`, sorted by sequence ID descending.
     fn get_latest_grant_events(
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Event>, Error>;
+    ) -> Result<Vec<Event>, Exn<Self::Error>>;
 
     /// Returns up to `limit` Gift records for `community_id`, sorted by sequence ID descending.
     fn get_latest_gift_records(
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Record>, Error>;
+    ) -> Result<Vec<Record>, Exn<Self::Error>>;
 
     /// Returns all records for `community_id` with sequence ID strictly between `after` and
     /// `before`, sorted ascending.
@@ -58,17 +66,20 @@ pub trait EventLogProvider {
         community_id: CommunityId,
         after: SequenceId,
         before: SequenceId,
-    ) -> Result<Vec<Record>, Error>;
+    ) -> Result<Vec<Record>, Exn<Self::Error>>;
 }
 
 /// Write port for the event and effect log.
 pub trait EventLogPersistor {
+    /// The error type returned by storage operations.
+    type Error: DbError;
+
     /// Assign the next sequence ID to a new event and store it.
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error>;
+    ) -> Result<Event, Exn<Self::Error>>;
 
     /// Store an effect with the same sequence ID as its originating event.
     ///
@@ -79,8 +90,11 @@ pub trait EventLogPersistor {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error>;
+    ) -> Result<Effect, Exn<Self::Error>>;
 }
 
 /// Combined read/write port for the event and effect log.
-pub trait EventLogRepo: EventLogProvider + EventLogPersistor {}
+pub trait EventLogRepo:
+    EventLogProvider + EventLogPersistor<Error = <Self as EventLogProvider>::Error>
+{
+}

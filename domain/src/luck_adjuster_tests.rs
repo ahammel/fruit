@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use exn::Exn;
+
 use super::*;
 use crate::{
     bag::Bag,
@@ -52,11 +54,12 @@ impl MockEventLog {
 }
 
 impl EventLogProvider for MockEventLog {
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -65,7 +68,7 @@ impl EventLogProvider for MockEventLog {
         _: crate::community::CommunityId,
         _: usize,
         _: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -74,7 +77,7 @@ impl EventLogProvider for MockEventLog {
         _: crate::community::CommunityId,
         _: usize,
         _: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
 
@@ -82,7 +85,7 @@ impl EventLogProvider for MockEventLog {
         &self,
         _: crate::community::CommunityId,
         _: usize,
-    ) -> Result<Vec<Event>, Error> {
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(self.grant_events.clone())
     }
 
@@ -90,7 +93,7 @@ impl EventLogProvider for MockEventLog {
         &self,
         _: crate::community::CommunityId,
         limit: usize,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         *self.gift_limit_seen.lock().unwrap() = Some(limit);
         Ok(self.gift_records.iter().take(limit).cloned().collect())
     }
@@ -100,7 +103,7 @@ impl EventLogProvider for MockEventLog {
         _: crate::community::CommunityId,
         _: SequenceId,
         _: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(self.between_records.clone())
     }
 }
@@ -122,17 +125,19 @@ impl MockCommunityProvider {
 }
 
 impl CommunityProvider for MockCommunityProvider {
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Error> {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self.community.clone())
     }
 
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Error> {
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self.community.clone())
     }
 }
 
 impl CommunityPersistor for MockCommunityProvider {
-    fn put(&self, c: Community) -> Result<Community, Error> {
+    type Error = Error;
+    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }

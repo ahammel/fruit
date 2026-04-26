@@ -459,14 +459,14 @@ fn get_records_before_excludes_record_at_exact_cursor() {
 fn via_provider_get_record<T: EventLogProvider>(
     p: T,
     id: SequenceId,
-) -> Result<Option<Record>, Error> {
+) -> Result<Option<Record>, Exn<T::Error>> {
     p.get_record(id)
 }
 
 fn via_provider_get_effect_for_event<T: EventLogProvider>(
     p: T,
     id: SequenceId,
-) -> Result<Option<Effect>, Error> {
+) -> Result<Option<Effect>, Exn<T::Error>> {
     p.get_effect_for_event(id)
 }
 
@@ -475,7 +475,7 @@ fn via_provider_get_effects_after<T: EventLogProvider>(
     cid: CommunityId,
     limit: usize,
     after: SequenceId,
-) -> Result<Vec<Effect>, Error> {
+) -> Result<Vec<Effect>, Exn<T::Error>> {
     p.get_effects_after(cid, limit, after)
 }
 
@@ -484,7 +484,7 @@ fn via_provider_get_records_before<T: EventLogProvider>(
     cid: CommunityId,
     limit: usize,
     before: Option<SequenceId>,
-) -> Result<Vec<Record>, Error> {
+) -> Result<Vec<Record>, Exn<T::Error>> {
     p.get_records_before(cid, limit, before)
 }
 
@@ -492,7 +492,7 @@ fn via_persistor_append_event<T: EventLogPersistor>(
     p: T,
     cid: CommunityId,
     payload: EventPayload,
-) -> Result<Event, Error> {
+) -> Result<Event, Exn<T::Error>> {
     p.append_event(cid, payload)
 }
 
@@ -501,7 +501,7 @@ fn via_persistor_append_effect<T: EventLogPersistor>(
     event_id: SequenceId,
     cid: CommunityId,
     mutations: Vec<StateMutation>,
-) -> Result<Effect, Error> {
+) -> Result<Effect, Exn<T::Error>> {
     p.append_effect(event_id, cid, mutations)
 }
 
@@ -809,7 +809,7 @@ fn via_provider_get_latest_grant_events<T: EventLogProvider>(
     p: T,
     cid: CommunityId,
     limit: usize,
-) -> Result<Vec<Event>, Error> {
+) -> Result<Vec<Event>, Exn<T::Error>> {
     p.get_latest_grant_events(cid, limit)
 }
 
@@ -817,7 +817,7 @@ fn via_provider_get_latest_gift_records<T: EventLogProvider>(
     p: T,
     cid: CommunityId,
     limit: usize,
-) -> Result<Vec<Record>, Error> {
+) -> Result<Vec<Record>, Exn<T::Error>> {
     p.get_latest_gift_records(cid, limit)
 }
 
@@ -826,7 +826,7 @@ fn via_provider_get_records_between<T: EventLogProvider>(
     cid: CommunityId,
     after: SequenceId,
     before: SequenceId,
-) -> Result<Vec<Record>, Error> {
+) -> Result<Vec<Record>, Exn<T::Error>> {
     p.get_records_between(cid, after, before)
 }
 

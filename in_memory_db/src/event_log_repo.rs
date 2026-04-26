@@ -1,20 +1,21 @@
 use std::{
     collections::HashMap,
-    io,
     sync::{
         atomic::{AtomicU64, Ordering},
         RwLock,
     },
 };
 
+use exn::Exn;
 use fruit_domain::{
     community::CommunityId,
-    error::Error,
     event_log::{
         Effect, Event, EventPayload, HasSequenceId as _, Record, SequenceId, StateMutation,
     },
     event_log_repo::{EventLogPersistor, EventLogProvider, EventLogRepo},
 };
+
+use crate::error::{AlreadyExists, Error, Lock, LockPoisoned};
 
 /// In-memory implementation of [`EventLogRepo`].
 ///
@@ -51,17 +52,35 @@ impl Default for InMemoryEventLogRepo {
 }
 
 impl EventLogProvider for InMemoryEventLogRepo {
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
-        let event = match self.events.read()?.get(&id).cloned() {
+    type Error = Error;
+
+    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        let event = match self
+            .events
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
+            .get(&id)
+            .cloned()
+        {
             Some(e) => e,
             None => return Ok(None),
         };
-        let effect = self.effects.read()?.get(&id).cloned();
+        let effect = self
+            .effects
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?
+            .get(&id)
+            .cloned();
         Ok(Some(Record { event, effect }))
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
-        Ok(self.effects.read()?.get(&event_id).cloned())
+    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(self
+            .effects
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?
+            .get(&event_id)
+            .cloned())
     }
 
     fn get_effects_after(
@@ -69,10 +88,11 @@ impl EventLogProvider for InMemoryEventLogRepo {
         community_id: CommunityId,
         limit: usize,
         after: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         let mut effects: Vec<Effect> = self
             .effects
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?
             .values()
             .filter(|e| e.community_id == community_id && e.id > after)
             .cloned()
@@ -87,11 +107,15 @@ impl EventLogProvider for InMemoryEventLogRepo {
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
-        let effects = self.effects.read()?;
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        let effects = self
+            .effects
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?;
         let mut records: Vec<Record> = self
             .events
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
             .values()
             .filter(|e| e.community_id == community_id)
             .filter(|e| before.is_none_or(|cursor| e.id < cursor))
@@ -109,10 +133,11 @@ impl EventLogProvider for InMemoryEventLogRepo {
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Event>, Error> {
+    ) -> Result<Vec<Event>, Exn<Error>> {
         let mut events: Vec<Event> = self
             .events
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
             .values()
             .filter(|e| e.community_id == community_id)
             .filter(|e| {
@@ -132,11 +157,15 @@ impl EventLogProvider for InMemoryEventLogRepo {
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Record>, Error> {
-        let effects = self.effects.read()?;
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        let effects = self
+            .effects
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?;
         let mut records: Vec<Record> = self
             .events
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
             .values()
             .filter(|e| e.community_id == community_id)
             .filter(|e| {
@@ -160,11 +189,15 @@ impl EventLogProvider for InMemoryEventLogRepo {
         community_id: CommunityId,
         after: SequenceId,
         before: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
-        let effects = self.effects.read()?;
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        let effects = self
+            .effects
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?;
         let mut records: Vec<Record> = self
             .events
-            .read()?
+            .read()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
             .values()
             .filter(|e| e.community_id == community_id && e.id > after && e.id < before)
             .map(|e| Record {
@@ -178,24 +211,25 @@ impl EventLogProvider for InMemoryEventLogRepo {
 }
 
 impl EventLogPersistor for InMemoryEventLogRepo {
+    type Error = Error;
+
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<Error>> {
         let id = self.next_id();
         let event = Event {
             id,
             community_id,
             payload,
         };
-        let mut events = self.events.write()?;
+        let mut events = self
+            .events
+            .write()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EventLogWrite))?;
         if events.contains_key(&id) {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("sequence ID {id} already written"),
-            )
-            .into());
+            return Err(AlreadyExists::event(community_id, id).into());
         }
         events.insert(id, event.clone());
         Ok(event)
@@ -206,19 +240,18 @@ impl EventLogPersistor for InMemoryEventLogRepo {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         let effect = Effect {
             id: event_id,
             community_id,
             mutations,
         };
-        let mut effects = self.effects.write()?;
+        let mut effects = self
+            .effects
+            .write()
+            .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogWrite))?;
         if effects.contains_key(&event_id) {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("effect for event ID {event_id} already written"),
-            )
-            .into());
+            return Err(AlreadyExists::effect(community_id, event_id).into());
         }
         effects.insert(event_id, effect.clone());
         Ok(effect)
@@ -228,11 +261,13 @@ impl EventLogPersistor for InMemoryEventLogRepo {
 impl EventLogRepo for InMemoryEventLogRepo {}
 
 impl EventLogProvider for &InMemoryEventLogRepo {
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error> {
+    type Error = Error;
+
+    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         (*self).get_record(id)
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error> {
+    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
         (*self).get_effect_for_event(event_id)
     }
 
@@ -241,7 +276,7 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         community_id: CommunityId,
         limit: usize,
         after: SequenceId,
-    ) -> Result<Vec<Effect>, Error> {
+    ) -> Result<Vec<Effect>, Exn<Error>> {
         (*self).get_effects_after(community_id, limit, after)
     }
 
@@ -250,7 +285,7 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         (*self).get_records_before(community_id, limit, before)
     }
 
@@ -258,7 +293,7 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Event>, Error> {
+    ) -> Result<Vec<Event>, Exn<Error>> {
         (*self).get_latest_grant_events(community_id, limit)
     }
 
@@ -266,7 +301,7 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         &self,
         community_id: CommunityId,
         limit: usize,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         (*self).get_latest_gift_records(community_id, limit)
     }
 
@@ -275,17 +310,19 @@ impl EventLogProvider for &InMemoryEventLogRepo {
         community_id: CommunityId,
         after: SequenceId,
         before: SequenceId,
-    ) -> Result<Vec<Record>, Error> {
+    ) -> Result<Vec<Record>, Exn<Error>> {
         (*self).get_records_between(community_id, after, before)
     }
 }
 
 impl EventLogPersistor for &InMemoryEventLogRepo {
+    type Error = Error;
+
     fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Error> {
+    ) -> Result<Event, Exn<Error>> {
         (*self).append_event(community_id, payload)
     }
 
@@ -294,7 +331,7 @@ impl EventLogPersistor for &InMemoryEventLogRepo {
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Error> {
+    ) -> Result<Effect, Exn<Error>> {
         (*self).append_effect(event_id, community_id, mutations)
     }
 }

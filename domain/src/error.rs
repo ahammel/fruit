@@ -1,49 +1,139 @@
-use std::{fmt, io, sync::PoisonError};
+use std::{error, fmt::Display};
 
-/// Errors that can occur when accessing domain storage.
+use anomalies::{
+    anomaly::{Anomaly, HasCategory, HasStatus},
+    category::Category,
+    status::Status,
+};
+use exn::Exn;
+
+/// Returned to re-wrap errors from the storage layer
+#[derive(Debug)]
+pub struct StorageLayerError {
+    message: String,
+    category: Category,
+    status: Status,
+}
+
+impl StorageLayerError {
+    pub fn build(message: impl Into<String>, category: Category, status: Status) -> Error {
+        Error::StorageLayerError(StorageLayerError {
+            message: message.into(),
+            category,
+            status,
+        })
+    }
+
+    pub fn raise(message: impl Into<String>, err: Exn<impl DbError>) -> Exn<Error> {
+        let storage_error = Error::StorageLayerError(StorageLayerError {
+            message: message.into(),
+            status: err.status(),
+            category: err.category(),
+        });
+        err.raise(storage_error)
+    }
+}
+
+impl Display for StorageLayerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Storage layer error: {}", self.message)
+    }
+}
+
+impl error::Error for StorageLayerError {}
+
+impl HasCategory for StorageLayerError {
+    fn category(&self) -> Category {
+        self.category
+    }
+}
+
+impl HasStatus for StorageLayerError {
+    fn status(&self) -> Status {
+        self.status
+    }
+}
+
+impl Anomaly for StorageLayerError {}
+
+/// Errors from the storage layer that are guaranteed to be retryable by business logic
+#[derive(Debug, Anomaly)]
+#[category(unavailable)]
+pub struct RetryableStorageLayerError {
+    message: String,
+}
+
+impl Display for RetryableStorageLayerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Retryable storage layer error: {}", self.message)
+    }
+}
+
+impl error::Error for RetryableStorageLayerError {}
+
+/// Errors that can occur in the domain layer
 #[derive(Debug)]
 pub enum Error {
-    /// An I/O error from an underlying storage backend.
-    Io(io::Error),
-    /// A lock was poisoned because a thread panicked while holding it.
-    ///
-    /// `PoisonError<T>` implements `std::error::Error` but carries a lock guard
-    /// as `T`, giving it a non-`'static` lifetime. That prevents storing it as
-    /// `Box<dyn Error + 'static>` the way [`Error::Io`] is stored, so the
-    /// message is extracted as a [`String`] at the call site instead. As a
-    /// result, [`std::error::Error::source`] returns `None` for this variant.
-    Poisoned(String),
+    StorageLayerError(StorageLayerError),
+    RetryableStorageLayerError(RetryableStorageLayerError),
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "I/O error: {e}"),
-            Error::Poisoned(msg) => write!(f, "poisoned lock: {msg}"),
+            Error::StorageLayerError(e) => e.fmt(f),
+            Error::RetryableStorageLayerError(e) => e.fmt(f),
         }
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl error::Error for Error {}
+
+impl HasCategory for Error {
+    fn category(&self) -> Category {
         match self {
-            Error::Io(e) => Some(e),
-            Error::Poisoned(_) => None,
+            Error::StorageLayerError(e) => e.category(),
+            Error::RetryableStorageLayerError(e) => e.category(),
         }
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::Io(e)
+impl HasStatus for Error {
+    fn status(&self) -> Status {
+        match self {
+            Error::StorageLayerError(e) => e.status(),
+            Error::RetryableStorageLayerError(e) => e.status(),
+        }
     }
 }
 
-// `T` is a lock guard with a non-`'static` lifetime, so `PoisonError<T>`
-// cannot be boxed as `dyn Error + 'static`. Extract the message here instead.
-impl<T> From<PoisonError<T>> for Error {
-    fn from(e: PoisonError<T>) -> Self {
-        Error::Poisoned(e.to_string())
+impl Anomaly for Error {}
+
+impl From<StorageLayerError> for Error {
+    fn from(value: StorageLayerError) -> Self {
+        Error::StorageLayerError(value)
+    }
+}
+
+impl From<RetryableStorageLayerError> for Error {
+    fn from(value: RetryableStorageLayerError) -> Self {
+        Error::RetryableStorageLayerError(value)
+    }
+}
+
+/// Marker trait for errors returned by database port implementations.
+///
+/// Implementors satisfy the bounds required by [`exn::Exn`] and carry enough
+/// information for callers to categorise and act on failures without knowing the
+/// concrete database backend.
+pub trait DbError: Anomaly + Send + Sync + 'static {}
+
+impl DbError for Error {}
+
+#[cfg(test)]
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        StorageLayerError::build(e.to_string(), anomalies::category::Fault, Status::Permanent)
     }
 }
 
