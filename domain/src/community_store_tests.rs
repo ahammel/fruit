@@ -12,9 +12,7 @@ use crate::{
 };
 
 fn err() -> Exn<Error> {
-    Exn::new(Error::RetryableStorageLayerError {
-        message: "test error".to_string(),
-    })
+    Exn::new(Error::GrantInterrupted("test error".to_string()))
 }
 
 // --- mock repo that always errors ---

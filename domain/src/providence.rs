@@ -1,10 +1,10 @@
-use exn::Exn;
+use exn::{Exn, ResultExt};
 use newtype_ids::IntegerIdentifier as _;
 
 use crate::{
     community::Community,
     community_repo::CommunityProvider,
-    error::DbError,
+    error::{DbError, Error, StorageLayerError},
     event_log::{Effect, EventPayload, SequenceId, StateMutation},
     event_log_repo::{EventLogProvider, EventLogRepo},
     granter::Granter,
@@ -60,11 +60,25 @@ where
         &mut self,
         community: &Community,
         count: usize,
-    ) -> Result<Vec<StateMutation>, Exn<E>> {
-        let recent_grants = self.event_log.get_latest_grant_events(community.id, 2)?;
+    ) -> Result<Vec<StateMutation>, Exn<Error>> {
+        let recent_grants = self
+            .event_log
+            .get_latest_grant_events(community.id, 2)
+            .map_err(|e| {
+                let msg = "failed to read grant events to check for in-progress grant";
+                StorageLayerError::raise(msg, e)
+            })?;
 
         let latest_is_orphaned = match recent_grants.first() {
-            Some(e) => self.event_log.get_effect_for_event(e.id)?.is_none(),
+            Some(e) => self
+                .event_log
+                .get_effect_for_event(e.id)
+                .map_err(|e| {
+                    let msg =
+                        "failed to read effect while testing whether latest grant is in orphaned";
+                    StorageLayerError::raise(msg, e)
+                })?
+                .is_none(),
             None => false,
         };
 
@@ -81,20 +95,39 @@ where
                 .unwrap_or_else(SequenceId::zero);
             let event = self
                 .event_log
-                .append_event(community.id, EventPayload::Grant { count })?;
+                .append_event(community.id, EventPayload::Grant { count })
+                .map_err(|e| StorageLayerError::raise("failed to create grant event", e))?;
             (event, prev)
         };
 
+        // If we made it this far, then the grant event has been persisted and
+        // retries are guaranteed to be safe
+
         let community_at_last_grant = self
             .community_provider
-            .get(community.id, prev_grant_id)?
+            .get(community.id, prev_grant_id)
+            .or_raise(|| {
+                Error::GrantInterrupted(
+                    "failed to read latest community while processing grant".to_string(),
+                )
+            })?
             .unwrap_or_else(|| Community::new().with_id(community.id));
 
-        let records_since_last_grant =
-            self.event_log
-                .get_records_between(community.id, prev_grant_id, grant_event.id)?;
+        let records_since_last_grant = self
+            .event_log
+            .get_records_between(community.id, prev_grant_id, grant_event.id)
+            .or_raise(|| {
+                Error::GrantInterrupted("failed to read records between grants".to_string())
+            })?;
 
-        let recent_gift_records = self.event_log.get_latest_gift_records(community.id, 100)?;
+        let recent_gift_records = self
+            .event_log
+            .get_latest_gift_records(community.id, 100)
+            .or_raise(|| {
+                Error::GrantInterrupted(
+                    "failed to read gift history while processing grant".to_string(),
+                )
+            })?;
 
         let luck_mutations = luck_adjustments::compute(
             &community_at_last_grant,
@@ -114,7 +147,8 @@ where
 
         let all_mutations = [luck_mutations, fruit_mutations].concat();
         self.event_log
-            .append_effect(grant_event.id, community.id, all_mutations.clone())?;
+            .append_effect(grant_event.id, community.id, all_mutations.clone())
+            .or_raise(|| Error::GrantInterrupted("failed to create grant effect".to_string()))?;
 
         Ok(all_mutations)
     }

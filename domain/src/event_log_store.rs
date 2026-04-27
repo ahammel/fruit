@@ -4,7 +4,7 @@ use newtype_ids::IntegerIdentifier;
 
 use crate::{
     community::CommunityId,
-    error::DbError,
+    error::{DbError, Error, StorageLayerError},
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
     event_log_repo::{EventLogProvider, EventLogRepo},
 };
@@ -24,13 +24,17 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
     }
 
     /// Returns the log entry at `id`, or `None` if not found.
-    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<E>> {
-        self.repo.get_record(id)
+    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        self.repo
+            .get_record(id)
+            .map_err(|e| StorageLayerError::raise("failed to read event log record", e))
     }
 
     /// Returns the effect with the given ID (equal to its originating event's ID), or `None` if not yet processed.
-    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<E>> {
-        self.repo.get_effect_for_event(event_id)
+    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        self.repo
+            .get_effect_for_event(event_id)
+            .map_err(|e| StorageLayerError::raise("failed to read effect", e))
     }
 
     /// Returns up to `limit` effects for `community_id` after `after`, sorted by
@@ -42,8 +46,10 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
         community_id: CommunityId,
         limit: usize,
         #[builder(default = SequenceId::zero())] after: SequenceId,
-    ) -> Result<Vec<Effect>, Exn<E>> {
-        self.repo.get_effects_after(community_id, limit, after)
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        self.repo
+            .get_effects_after(community_id, limit, after)
+            .map_err(|e| StorageLayerError::raise("failed to read effects", e))
     }
 
     /// Returns up to `limit` records for `community_id` before `before`, sorted by
@@ -56,8 +62,10 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
-    ) -> Result<Vec<Record>, Exn<E>> {
-        self.repo.get_records_before(community_id, limit, before)
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        self.repo
+            .get_records_before(community_id, limit, before)
+            .map_err(|e| StorageLayerError::raise("failed to read records", e))
     }
 
     /// Assigns the next sequence ID to a new event and stores it.
@@ -65,8 +73,10 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
         &self,
         community_id: CommunityId,
         payload: EventPayload,
-    ) -> Result<Event, Exn<E>> {
-        self.repo.append_event(community_id, payload)
+    ) -> Result<Event, Exn<Error>> {
+        self.repo
+            .append_event(community_id, payload)
+            .map_err(|e| StorageLayerError::raise("failed to create event", e))
     }
 
     /// Stores an effect with the same sequence ID as its originating event.
@@ -75,8 +85,10 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
-    ) -> Result<Effect, Exn<E>> {
-        self.repo.append_effect(event_id, community_id, mutations)
+    ) -> Result<Effect, Exn<Error>> {
+        self.repo
+            .append_effect(event_id, community_id, mutations)
+            .map_err(|e| StorageLayerError::raise("failed to create effect", e))
     }
 }
 

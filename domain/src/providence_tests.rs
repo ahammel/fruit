@@ -259,15 +259,11 @@ struct ErrorEventLog;
 impl EventLogProvider for ErrorEventLog {
     type Error = Error;
     fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_effects_after(
@@ -276,9 +272,7 @@ impl EventLogProvider for ErrorEventLog {
         _: usize,
         _: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_records_before(
@@ -287,21 +281,15 @@ impl EventLogProvider for ErrorEventLog {
         _: usize,
         _: Option<SequenceId>,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn get_records_between(
@@ -310,18 +298,14 @@ impl EventLogProvider for ErrorEventLog {
         _: SequenceId,
         _: SequenceId,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 }
 
 impl EventLogPersistor for ErrorEventLog {
     type Error = Error;
     fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
     fn append_effect(
@@ -330,9 +314,7 @@ impl EventLogPersistor for ErrorEventLog {
         _: CommunityId,
         _: Vec<StateMutation>,
     ) -> Result<Effect, Exn<Error>> {
-        Err(Exn::new(Error::RetryableStorageLayerError {
-            message: "err".to_string(),
-        }))
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 }
 
@@ -555,4 +537,464 @@ fn orphaned_grant_is_completed_without_appending_new_event() {
         "should resume orphaned grant, not append a new event"
     );
     assert_eq!(result, vec![StateMutation::BurnLuckBonus { delta: 7 }]);
+}
+
+// ── error propagation tests ────────────────────────────────────────────────────
+
+// Returns one grant event so get_effect_for_event is reached; errors there.
+struct GetEffectForEventErrorLog {
+    community_id: CommunityId,
+}
+
+impl EventLogProvider for GetEffectForEventErrorLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![Event {
+            id: SequenceId::new(1),
+            community_id: self.community_id,
+            payload: EventPayload::Grant { count: 1 },
+        }])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl EventLogPersistor for GetEffectForEventErrorLog {
+    type Error = Error;
+    fn append_event(
+        &self,
+        community_id: CommunityId,
+        payload: EventPayload,
+    ) -> Result<Event, Exn<Error>> {
+        Ok(Event {
+            id: SequenceId::new(2),
+            community_id,
+            payload,
+        })
+    }
+    fn append_effect(
+        &self,
+        event_id: SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<StateMutation>,
+    ) -> Result<Effect, Exn<Error>> {
+        Ok(Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        })
+    }
+}
+
+impl EventLogRepo for GetEffectForEventErrorLog {}
+
+#[test]
+fn get_effect_for_event_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence = Providence::new(
+        GetEffectForEventErrorLog {
+            community_id: community.id,
+        },
+        NoneProvider,
+        granter,
+    );
+    assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+// No prior grants so append_event is reached; errors there.
+struct AppendEventErrorLog;
+
+impl EventLogProvider for AppendEventErrorLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl EventLogPersistor for AppendEventErrorLog {
+    type Error = Error;
+    fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+    fn append_effect(
+        &self,
+        event_id: SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<StateMutation>,
+    ) -> Result<Effect, Exn<Error>> {
+        Ok(Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        })
+    }
+}
+
+impl EventLogRepo for AppendEventErrorLog {}
+
+#[test]
+fn append_event_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence = Providence::new(AppendEventErrorLog, NoneProvider, granter);
+    assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+// Community provider that errors on get.
+struct ErrorCommunityProvider;
+
+impl CommunityProvider for ErrorCommunityProvider {
+    type Error = Error;
+    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+        Ok(None)
+    }
+}
+
+#[test]
+fn community_provider_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence = Providence::new(StubEventLog::new(), ErrorCommunityProvider, granter);
+    assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+// Succeeds through append_event; errors on get_records_between.
+struct GetRecordsBetweenErrorLog {
+    next_id: Mutex<u64>,
+}
+
+impl GetRecordsBetweenErrorLog {
+    fn new() -> Self {
+        Self {
+            next_id: Mutex::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for GetRecordsBetweenErrorLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+}
+
+impl EventLogPersistor for GetRecordsBetweenErrorLog {
+    type Error = Error;
+    fn append_event(
+        &self,
+        community_id: CommunityId,
+        payload: EventPayload,
+    ) -> Result<Event, Exn<Error>> {
+        let mut n = self.next_id.lock().unwrap();
+        *n += 1;
+        Ok(Event {
+            id: SequenceId::new(*n),
+            community_id,
+            payload,
+        })
+    }
+    fn append_effect(
+        &self,
+        event_id: SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<StateMutation>,
+    ) -> Result<Effect, Exn<Error>> {
+        Ok(Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        })
+    }
+}
+
+impl EventLogRepo for GetRecordsBetweenErrorLog {}
+
+#[test]
+fn get_records_between_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence = Providence::new(GetRecordsBetweenErrorLog::new(), NoneProvider, granter);
+    assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+// Succeeds through get_records_between; errors on get_latest_gift_records.
+struct GetLatestGiftRecordsErrorLog {
+    next_id: Mutex<u64>,
+}
+
+impl GetLatestGiftRecordsErrorLog {
+    fn new() -> Self {
+        Self {
+            next_id: Mutex::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for GetLatestGiftRecordsErrorLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl EventLogPersistor for GetLatestGiftRecordsErrorLog {
+    type Error = Error;
+    fn append_event(
+        &self,
+        community_id: CommunityId,
+        payload: EventPayload,
+    ) -> Result<Event, Exn<Error>> {
+        let mut n = self.next_id.lock().unwrap();
+        *n += 1;
+        Ok(Event {
+            id: SequenceId::new(*n),
+            community_id,
+            payload,
+        })
+    }
+    fn append_effect(
+        &self,
+        event_id: SequenceId,
+        community_id: CommunityId,
+        mutations: Vec<StateMutation>,
+    ) -> Result<Effect, Exn<Error>> {
+        Ok(Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        })
+    }
+}
+
+impl EventLogRepo for GetLatestGiftRecordsErrorLog {}
+
+#[test]
+fn get_latest_gift_records_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence =
+        Providence::new(GetLatestGiftRecordsErrorLog::new(), NoneProvider, granter);
+    assert!(providence.grant_fruit(&community, 1).is_err());
+}
+
+// Succeeds through get_latest_gift_records; errors on append_effect.
+struct AppendEffectErrorLog {
+    next_id: Mutex<u64>,
+}
+
+impl AppendEffectErrorLog {
+    fn new() -> Self {
+        Self {
+            next_id: Mutex::new(0),
+        }
+    }
+}
+
+impl EventLogProvider for AppendEffectErrorLog {
+    type Error = Error;
+    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+        Ok(None)
+    }
+    fn get_effects_after(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: SequenceId,
+    ) -> Result<Vec<Effect>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_before(
+        &self,
+        _: CommunityId,
+        _: usize,
+        _: Option<SequenceId>,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+    fn get_records_between(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+        _: SequenceId,
+    ) -> Result<Vec<Record>, Exn<Error>> {
+        Ok(vec![])
+    }
+}
+
+impl EventLogPersistor for AppendEffectErrorLog {
+    type Error = Error;
+    fn append_event(
+        &self,
+        community_id: CommunityId,
+        payload: EventPayload,
+    ) -> Result<Event, Exn<Error>> {
+        let mut n = self.next_id.lock().unwrap();
+        *n += 1;
+        Ok(Event {
+            id: SequenceId::new(*n),
+            community_id,
+            payload,
+        })
+    }
+    fn append_effect(
+        &self,
+        _: SequenceId,
+        _: CommunityId,
+        _: Vec<StateMutation>,
+    ) -> Result<Effect, Exn<Error>> {
+        Err(Exn::new(Error::GrantInterrupted("err".to_string())))
+    }
+}
+
+impl EventLogRepo for AppendEffectErrorLog {}
+
+#[test]
+fn append_effect_error_propagates() {
+    let community = Community::new();
+    let (granter, _) = CapturingGranter::new(vec![]);
+    let mut providence = Providence::new(AppendEffectErrorLog::new(), NoneProvider, granter);
+    assert!(providence.grant_fruit(&community, 1).is_err());
 }

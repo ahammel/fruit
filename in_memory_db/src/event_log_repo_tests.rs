@@ -246,7 +246,7 @@ fn get_record_returns_pending_event_without_effect() {
         log.get_record(event.id).unwrap(),
         Some(Record {
             event,
-            effect: None,
+            effect: None
         })
     );
 }
@@ -385,7 +385,7 @@ fn get_records_before_pending_event_has_none_effect() {
         log.get_records_before(cid, 10, None).unwrap(),
         vec![Record {
             event,
-            effect: None,
+            effect: None
         }]
     );
 }
@@ -514,7 +514,7 @@ fn ref_delegates_get_record() {
         via_provider_get_record(&log, event.id).unwrap(),
         Some(Record {
             event,
-            effect: None,
+            effect: None
         })
     );
 }
@@ -552,7 +552,7 @@ fn ref_delegates_get_records_before() {
         via_provider_get_records_before(&log, cid, 5, None).unwrap(),
         vec![Record {
             event,
-            effect: None,
+            effect: None
         }]
     );
 }
@@ -566,7 +566,7 @@ fn ref_delegates_append_event() {
         via_provider_get_record(&log, event.id).unwrap(),
         Some(Record {
             event,
-            effect: None,
+            effect: None
         })
     );
 }

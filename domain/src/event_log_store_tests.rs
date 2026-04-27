@@ -82,44 +82,72 @@ fn store() -> EventLogStore<ErrorRepo> {
 
 #[test]
 fn get_record_propagates_error() {
-    assert!(store().get_record(SequenceId::zero()).is_err());
+    assert_eq!(
+        store()
+            .get_record(SequenceId::zero())
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to read event log record"
+    );
 }
 
 #[test]
 fn get_effect_for_event_propagates_error() {
-    assert!(store().get_effect_for_event(SequenceId::zero()).is_err());
+    assert_eq!(
+        store()
+            .get_effect_for_event(SequenceId::zero())
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to read effect"
+    );
 }
 
 #[test]
 fn get_effects_after_propagates_error() {
-    assert!(store()
-        .get_effects_after()
-        .community_id(CommunityId::new())
-        .limit(10)
-        .call()
-        .is_err());
+    assert_eq!(
+        store()
+            .get_effects_after()
+            .community_id(CommunityId::new())
+            .limit(10)
+            .call()
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to read effects"
+    );
 }
 
 #[test]
 fn get_records_before_propagates_error() {
-    assert!(store()
-        .get_records_before()
-        .community_id(CommunityId::new())
-        .limit(5)
-        .call()
-        .is_err());
+    assert_eq!(
+        store()
+            .get_records_before()
+            .community_id(CommunityId::new())
+            .limit(5)
+            .call()
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to read records"
+    );
 }
 
 #[test]
 fn append_event_propagates_error() {
-    assert!(store()
-        .append_event(CommunityId::new(), EventPayload::Grant { count: 1 })
-        .is_err());
+    assert_eq!(
+        store()
+            .append_event(CommunityId::new(), EventPayload::Grant { count: 1 })
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to create event"
+    );
 }
 
 #[test]
 fn append_effect_propagates_error() {
-    assert!(store()
-        .append_effect(SequenceId::zero(), CommunityId::new(), vec![])
-        .is_err());
+    assert_eq!(
+        store()
+            .append_effect(SequenceId::zero(), CommunityId::new(), vec![])
+            .unwrap_err()
+            .to_string(),
+        "Storage layer error: failed to create effect"
+    );
 }

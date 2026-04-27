@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 
 use anomalies::{
     anomaly::{HasCategory, HasStatus},
-    category::{Conflict, Fault, Unavailable},
+    category::{Conflict, Fault, Interrupted, Unavailable},
     status::Status,
 };
 use exn::Exn;
@@ -67,37 +67,29 @@ fn storage_layer_error_build_source_is_none() {
     assert!(StdError::source(&inner).is_none());
 }
 
-// ── RetryableStorageLayerError ────────────────────────────────────────────────
+// ── GrantInterrupted ──────────────────────────────────────────────────────────
 
 #[test]
-fn retryable_storage_layer_error_display() {
-    let err = Error::RetryableStorageLayerError {
-        message: "try again".to_string(),
-    };
+fn grant_interrupted_display() {
+    let err = Error::GrantInterrupted("try again".to_string());
     assert_eq!(err.to_string(), "Retryable storage layer error: try again");
 }
 
 #[test]
-fn retryable_storage_layer_error_has_unavailable_category() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
-    assert_eq!(err.category(), Unavailable);
+fn grant_interrupted_has_interrupted_category() {
+    let err = Error::GrantInterrupted("msg".to_string());
+    assert_eq!(err.category(), Interrupted);
 }
 
 #[test]
-fn retryable_storage_layer_error_has_temporary_status() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
+fn grant_interrupted_has_temporary_status() {
+    let err = Error::GrantInterrupted("msg".to_string());
     assert_eq!(err.status(), Status::Temporary);
 }
 
 #[test]
-fn retryable_storage_layer_error_source_is_none() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
+fn grant_interrupted_source_is_none() {
+    let err = Error::GrantInterrupted("msg".to_string());
     assert!(StdError::source(&err).is_none());
 }
 
@@ -110,10 +102,8 @@ fn error_storage_layer_variant_display() {
 }
 
 #[test]
-fn error_retryable_storage_layer_variant_display() {
-    let err = Error::RetryableStorageLayerError {
-        message: "try again".to_string(),
-    };
+fn error_grant_interrupted_variant_display() {
+    let err = Error::GrantInterrupted("try again".to_string());
     assert_eq!(err.to_string(), "Retryable storage layer error: try again");
 }
 
@@ -130,11 +120,9 @@ fn error_storage_layer_variant_has_fault_category() {
 }
 
 #[test]
-fn error_retryable_storage_layer_variant_has_unavailable_category() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
-    assert_eq!(err.category(), Unavailable);
+fn error_grant_interrupted_variant_has_interrupted_category() {
+    let err = Error::GrantInterrupted("msg".to_string());
+    assert_eq!(err.category(), Interrupted);
 }
 
 #[test]
@@ -150,10 +138,8 @@ fn error_storage_layer_variant_has_temporary_status() {
 }
 
 #[test]
-fn error_retryable_storage_layer_variant_has_temporary_status() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
+fn error_grant_interrupted_variant_has_temporary_status() {
+    let err = Error::GrantInterrupted("msg".to_string());
     assert_eq!(err.status(), Status::Temporary);
 }
 
@@ -164,10 +150,8 @@ fn error_storage_layer_variant_source_is_none() {
 }
 
 #[test]
-fn error_retryable_storage_layer_variant_source_is_none() {
-    let err = Error::RetryableStorageLayerError {
-        message: "msg".to_string(),
-    };
+fn error_grant_interrupted_variant_source_is_none() {
+    let err = Error::GrantInterrupted("msg".to_string());
     assert!(StdError::source(&err).is_none());
 }
 
@@ -216,18 +200,14 @@ fn raise_propagates_permanent_status() {
 
 #[test]
 fn raise_propagates_temporary_status() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
-        message: "connection failed".to_string(),
-    });
+    let db_exn: Exn<Error> = Exn::new(Error::GrantInterrupted("connection failed".to_string()));
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     assert_eq!(domain_exn.status(), Status::Temporary);
 }
 
 #[test]
 fn raise_debug_shows_domain_message_wrapping_db_message() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
-        message: "connection failed".to_string(),
-    });
+    let db_exn: Exn<Error> = Exn::new(Error::GrantInterrupted("connection failed".to_string()));
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     let debug = format!("{domain_exn:?}");
     let re = Regex::new(concat!(
@@ -241,9 +221,7 @@ fn raise_debug_shows_domain_message_wrapping_db_message() {
 
 #[test]
 fn raise_display_shows_only_domain_message() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
-        message: "connection failed".to_string(),
-    });
+    let db_exn: Exn<Error> = Exn::new(Error::GrantInterrupted("connection failed".to_string()));
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     assert_eq!(
         domain_exn.to_string(),

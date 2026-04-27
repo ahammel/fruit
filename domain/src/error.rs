@@ -15,9 +15,10 @@ pub enum Error {
     StorageLayerError(StorageLayerError),
 
     /// A storage layer error that is guaranteed to be retryable.
-    #[error("Retryable storage layer error: {message}")]
-    #[category(unavailable)]
-    RetryableStorageLayerError { message: String },
+    #[error("Retryable storage layer error: {0}")]
+    #[category(interrupted)]
+    #[status(temporary)]
+    GrantInterrupted(String),
 }
 
 /// Returned to re-wrap errors from the storage layer
