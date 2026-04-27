@@ -1,7 +1,4 @@
-use std::{
-    io,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use exn::Exn;
 use newtype_ids_uuid::UuidIdentifier as _;
@@ -262,11 +259,15 @@ struct ErrorEventLog;
 impl EventLogProvider for ErrorEventLog {
     type Error = Error;
     fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_effects_after(
@@ -275,7 +276,9 @@ impl EventLogProvider for ErrorEventLog {
         _: usize,
         _: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_records_before(
@@ -284,15 +287,21 @@ impl EventLogProvider for ErrorEventLog {
         _: usize,
         _: Option<SequenceId>,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn get_records_between(
@@ -301,14 +310,18 @@ impl EventLogProvider for ErrorEventLog {
         _: SequenceId,
         _: SequenceId,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 }
 
 impl EventLogPersistor for ErrorEventLog {
     type Error = Error;
     fn append_event(&self, _: CommunityId, _: EventPayload) -> Result<Event, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 
     fn append_effect(
@@ -317,7 +330,9 @@ impl EventLogPersistor for ErrorEventLog {
         _: CommunityId,
         _: Vec<StateMutation>,
     ) -> Result<Effect, Exn<Error>> {
-        Err(Exn::new(io::Error::other("err").into()))
+        Err(Exn::new(Error::RetryableStorageLayerError {
+            message: "err".to_string(),
+        }))
     }
 }
 

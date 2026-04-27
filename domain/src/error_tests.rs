@@ -71,7 +71,7 @@ fn storage_layer_error_build_source_is_none() {
 
 #[test]
 fn retryable_storage_layer_error_display() {
-    let err = RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "try again".to_string(),
     };
     assert_eq!(err.to_string(), "Retryable storage layer error: try again");
@@ -79,7 +79,7 @@ fn retryable_storage_layer_error_display() {
 
 #[test]
 fn retryable_storage_layer_error_has_unavailable_category() {
-    let err = RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
     };
     assert_eq!(err.category(), Unavailable);
@@ -87,7 +87,7 @@ fn retryable_storage_layer_error_has_unavailable_category() {
 
 #[test]
 fn retryable_storage_layer_error_has_temporary_status() {
-    let err = RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
     };
     assert_eq!(err.status(), Status::Temporary);
@@ -95,7 +95,7 @@ fn retryable_storage_layer_error_has_temporary_status() {
 
 #[test]
 fn retryable_storage_layer_error_source_is_none() {
-    let err = RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
     };
     assert!(StdError::source(&err).is_none());
@@ -111,9 +111,9 @@ fn error_storage_layer_variant_display() {
 
 #[test]
 fn error_retryable_storage_layer_variant_display() {
-    let err = Error::RetryableStorageLayerError(RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "try again".to_string(),
-    });
+    };
     assert_eq!(err.to_string(), "Retryable storage layer error: try again");
 }
 
@@ -131,9 +131,9 @@ fn error_storage_layer_variant_has_fault_category() {
 
 #[test]
 fn error_retryable_storage_layer_variant_has_unavailable_category() {
-    let err = Error::RetryableStorageLayerError(RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
-    });
+    };
     assert_eq!(err.category(), Unavailable);
 }
 
@@ -151,9 +151,9 @@ fn error_storage_layer_variant_has_temporary_status() {
 
 #[test]
 fn error_retryable_storage_layer_variant_has_temporary_status() {
-    let err = Error::RetryableStorageLayerError(RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
-    });
+    };
     assert_eq!(err.status(), Status::Temporary);
 }
 
@@ -165,33 +165,13 @@ fn error_storage_layer_variant_source_is_none() {
 
 #[test]
 fn error_retryable_storage_layer_variant_source_is_none() {
-    let err = Error::RetryableStorageLayerError(RetryableStorageLayerError {
+    let err = Error::RetryableStorageLayerError {
         message: "msg".to_string(),
-    });
+    };
     assert!(StdError::source(&err).is_none());
 }
 
 // ── From impls ────────────────────────────────────────────────────────────────
-
-#[test]
-fn from_storage_layer_error_produces_correct_variant() {
-    let Error::StorageLayerError(inner) =
-        StorageLayerError::build("x", Conflict, Status::Permanent)
-    else {
-        panic!("wrong variant")
-    };
-    let err = Error::from(inner);
-    assert!(matches!(err, Error::StorageLayerError(_)));
-}
-
-#[test]
-fn from_retryable_storage_layer_error_produces_correct_variant() {
-    let inner = RetryableStorageLayerError {
-        message: "x".to_string(),
-    };
-    let err = Error::from(inner);
-    assert!(matches!(err, Error::RetryableStorageLayerError(_)));
-}
 
 // ── DbError ───────────────────────────────────────────────────────────────────
 
@@ -200,16 +180,6 @@ fn error_implements_db_error() {
     fn assert_db_error<E: DbError>() {}
     assert_db_error::<Error>();
 }
-
-// ── From<io::Error> (cfg(test)) ───────────────────────────────────────────────
-
-#[test]
-fn error_from_io_error_display() {
-    let err = Error::from(std::io::Error::other("connection refused"));
-    assert_eq!(err.to_string(), "Storage layer error: connection refused");
-}
-
-// ── StorageLayerError::raise ──────────────────────────────────────────────────
 
 #[test]
 fn raise_propagates_conflict_category() {
@@ -246,22 +216,18 @@ fn raise_propagates_permanent_status() {
 
 #[test]
 fn raise_propagates_temporary_status() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError(
-        RetryableStorageLayerError {
-            message: "connection failed".to_string(),
-        },
-    ));
+    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
+        message: "connection failed".to_string(),
+    });
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     assert_eq!(domain_exn.status(), Status::Temporary);
 }
 
 #[test]
 fn raise_debug_shows_domain_message_wrapping_db_message() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError(
-        RetryableStorageLayerError {
-            message: "connection failed".to_string(),
-        },
-    ));
+    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
+        message: "connection failed".to_string(),
+    });
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     let debug = format!("{domain_exn:?}");
     let re = Regex::new(concat!(
@@ -275,11 +241,9 @@ fn raise_debug_shows_domain_message_wrapping_db_message() {
 
 #[test]
 fn raise_display_shows_only_domain_message() {
-    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError(
-        RetryableStorageLayerError {
-            message: "connection failed".to_string(),
-        },
-    ));
+    let db_exn: Exn<Error> = Exn::new(Error::RetryableStorageLayerError {
+        message: "connection failed".to_string(),
+    });
     let domain_exn = StorageLayerError::raise("could not load community", db_exn);
     assert_eq!(
         domain_exn.to_string(),

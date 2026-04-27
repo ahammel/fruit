@@ -13,18 +13,18 @@ dependencies = [
 
 [[package]]
 name = "anomalies"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f57fb032dcfc4f2fb5dc4ae7522f91bc4e4beeec62934e2900d5959a84aa3fce"
+checksum = "56cc4ac5574e0354730ed9e30855aee71ae503db2cc5e82ce6ee834a4dc8be10"
 dependencies = [
  "anomalies-derive",
 ]
 
 [[package]]
 name = "anomalies-derive"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b99238d1de948725a3058787688d404f6efb2136fdbf1ad11c1f565792dcf65e"
+checksum = "72b40ac0edfd434b77ed77be55038cbed7b9fea8349619dcb0e7ad23d4acac43"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -127,6 +127,7 @@ dependencies = [
  "newtype-ids-uuid",
  "rand",
  "regex",
+ "thiserror",
  "uuid",
 ]
 
@@ -140,6 +141,7 @@ dependencies = [
  "newtype-ids",
  "newtype-ids-uuid",
  "regex",
+ "thiserror",
 ]
 
 [[package]]
@@ -308,6 +310,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4288b5bcbc7920c07a1149a35cf9590a2aa808e0bc1eafaade0b80947865fbc4"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

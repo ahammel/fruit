@@ -1,17 +1,20 @@
-use std::io;
-
+use anomalies::{category::Unavailable, status::Status};
 use exn::Exn;
 use newtype_ids_uuid::UuidIdentifier;
 
 use super::*;
 use crate::{
-    error::Error,
+    error::{Error, StorageLayerError},
     event_log::Record,
     event_log_repo::{EventLogPersistor, EventLogProvider},
 };
 
 fn err() -> Exn<Error> {
-    Exn::new(io::Error::other("test error").into())
+    Exn::new(StorageLayerError::build(
+        "failed",
+        Unavailable,
+        Status::Temporary,
+    ))
 }
 
 struct ErrorRepo;

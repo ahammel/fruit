@@ -1,4 +1,4 @@
-use std::{cell::Cell, io};
+use std::cell::Cell;
 
 use exn::Exn;
 use newtype_ids::IntegerIdentifier;
@@ -12,7 +12,9 @@ use crate::{
 };
 
 fn err() -> Exn<Error> {
-    Exn::new(io::Error::other("test error").into())
+    Exn::new(Error::RetryableStorageLayerError {
+        message: "test error".to_string(),
+    })
 }
 
 // --- mock repo that always errors ---

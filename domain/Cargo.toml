@@ -7,7 +7,8 @@ edition = "2021"
 regex = "1"
 
 [dependencies]
-anomalies = "0.2"
+anomalies = "0.2.2"
+thiserror = "2"
 bon = "2.3"
 exn = "0.3.0"
 newtype-ids = "0.1"

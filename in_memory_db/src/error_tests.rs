@@ -98,10 +98,7 @@ fn already_exists_community_has_permanent_status() {
 #[test]
 fn already_exists_community_source_is_none() {
     let err = AlreadyExists::community(&Community::new());
-    let Error::AlreadyExists(inner) = err else {
-        panic!("wrong variant")
-    };
-    assert!(StdError::source(&inner).is_none());
+    assert!(StdError::source(&err).is_none());
 }
 
 // ── AlreadyExists::event ──────────────────────────────────────────────────────
@@ -135,10 +132,7 @@ fn already_exists_event_has_permanent_status() {
 #[test]
 fn already_exists_event_source_is_none() {
     let err = AlreadyExists::event(CommunityId::new(), SequenceId::new(1));
-    let Error::AlreadyExists(inner) = err else {
-        panic!("wrong variant")
-    };
-    assert!(StdError::source(&inner).is_none());
+    assert!(StdError::source(&err).is_none());
 }
 
 // ── AlreadyExists::effect ─────────────────────────────────────────────────────
@@ -172,10 +166,7 @@ fn already_exists_effect_has_permanent_status() {
 #[test]
 fn already_exists_effect_source_is_none() {
     let err = AlreadyExists::effect(CommunityId::new(), SequenceId::new(1));
-    let Error::AlreadyExists(inner) = err else {
-        panic!("wrong variant")
-    };
-    assert!(StdError::source(&inner).is_none());
+    assert!(StdError::source(&err).is_none());
 }
 
 // ── LockPoisoned ──────────────────────────────────────────────────────────────
@@ -273,10 +264,7 @@ fn lock_poisoned_source_is_none() {
     let mutex = make_poison_error();
     let pe = mutex.lock().unwrap_err();
     let err = LockPoisoned::build(&pe, Lock::CommunityRead);
-    let Error::LockPoisoned(inner) = err else {
-        panic!("wrong variant")
-    };
-    assert!(StdError::source(&inner).is_none());
+    assert!(StdError::source(&err).is_none());
 }
 
 // ── Error source ─────────────────────────────────────────────────────────────

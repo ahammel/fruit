@@ -1,10 +1,6 @@
 use std::{fmt, sync::PoisonError};
 
-use anomalies::{
-    anomaly::{Anomaly, HasCategory, HasStatus},
-    category::Category,
-    status::Status,
-};
+use anomalies::anomaly::Anomaly;
 use fruit_domain::{
     community::{Community, CommunityId},
     error::DbError,
@@ -12,65 +8,68 @@ use fruit_domain::{
 };
 use newtype_ids::IntegerIdentifier;
 use newtype_ids_uuid::UuidIdentifier;
+use thiserror::Error;
 
+/// Errors that can occur when accessing in-memory domain storage.
+#[derive(Debug, Error, Anomaly)]
+pub enum Error {
+    /// A write was attempted for a record that already exists.
+    #[error("could not write {:?} at version {} in community {} because it already exists",
+        .entity, .version.as_u64(), .community.as_uuid())]
+    #[category(conflict)]
+    AlreadyExists {
+        community: CommunityId,
+        version: SequenceId,
+        entity: Entity,
+    },
+    /// A lock was poisoned because a thread panicked while holding it.
+    #[error("{lock} was poisoned: {message}")]
+    #[category(interrupted)]
+    #[status(temporary)]
+    LockPoisoned { message: String, lock: Lock },
+}
+
+impl DbError for Error {}
+
+// Entities stored in the database
 #[derive(Debug)]
-pub(crate) enum Entity {
+pub enum Entity {
     Community,
     Event,
     Effect,
 }
 
-/// Returned when trying to write a record that already exists at the given ID or version.
-#[derive(Anomaly, Debug)]
-#[category(conflict)]
-pub struct AlreadyExists {
-    community: CommunityId,
-    version: SequenceId,
-    entity: Entity,
-}
+// Unit struct use for implementation of build fucntions
+pub struct AlreadyExists {}
 
 impl AlreadyExists {
-    pub(crate) fn community(community: &Community) -> Error {
-        Error::AlreadyExists(AlreadyExists {
+    pub fn community(community: &Community) -> Error {
+        Error::AlreadyExists {
             community: community.id,
             version: community.version,
             entity: Entity::Community,
-        })
+        }
     }
 
-    pub(crate) fn event(community: CommunityId, version: SequenceId) -> Error {
-        Error::AlreadyExists(AlreadyExists {
+    pub fn event(community: CommunityId, version: SequenceId) -> Error {
+        Error::AlreadyExists {
             community,
             version,
             entity: Entity::Event,
-        })
+        }
     }
 
-    pub(crate) fn effect(community: CommunityId, version: SequenceId) -> Error {
-        Error::AlreadyExists(AlreadyExists {
+    pub fn effect(community: CommunityId, version: SequenceId) -> Error {
+        Error::AlreadyExists {
             community,
             version,
             entity: Entity::Effect,
-        })
+        }
     }
 }
-
-impl fmt::Display for AlreadyExists {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "could not write {:?} at version {} in community {} because it already exists",
-            self.entity,
-            self.version.as_u64(),
-            self.community.as_uuid(),
-        )
-    }
-}
-
-impl std::error::Error for AlreadyExists {}
 
 #[derive(Debug)]
-pub(crate) enum Lock {
+pub enum Lock {
     CommunityRead,
     CommunityWrite,
     EventLogRead,
@@ -101,77 +100,16 @@ impl fmt::Display for Lock {
 /// `PoisonError<T>` carries a lock guard with a non-`'static` lifetime, so the
 /// message is extracted as a `String` at the call site. As a result,
 /// `std::error::Error::source` returns `None` for this variant.
-#[derive(Anomaly, Debug)]
-#[category(interrupted)]
-pub struct LockPoisoned {
-    message: String,
-    lock: Lock,
-}
+pub struct LockPoisoned;
 
 impl LockPoisoned {
-    pub(crate) fn build<T>(e: &PoisonError<T>, lock: Lock) -> Error {
-        Error::LockPoisoned(LockPoisoned {
+    pub fn build<T>(e: &PoisonError<T>, lock: Lock) -> Error {
+        Error::LockPoisoned {
             message: e.to_string(),
             lock,
-        })
-    }
-}
-
-impl HasStatus for LockPoisoned {
-    fn status(&self) -> Status {
-        Status::Temporary
-    }
-}
-
-impl fmt::Display for LockPoisoned {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} was poisoned: {}", self.lock, self.message)
-    }
-}
-
-impl std::error::Error for LockPoisoned {}
-
-/// Errors that can occur when accessing in-memory domain storage.
-#[derive(Debug)]
-pub enum Error {
-    /// A write was attempted for a record that already exists.
-    AlreadyExists(AlreadyExists),
-    /// A lock was poisoned because a thread panicked while holding it.
-    LockPoisoned(LockPoisoned),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::AlreadyExists(e) => e.fmt(f),
-            Error::LockPoisoned(e) => e.fmt(f),
         }
     }
 }
-
-impl std::error::Error for Error {}
-
-impl HasCategory for Error {
-    fn category(&self) -> Category {
-        match self {
-            Error::AlreadyExists(e) => e.category(),
-            Error::LockPoisoned(e) => e.category(),
-        }
-    }
-}
-
-impl HasStatus for Error {
-    fn status(&self) -> Status {
-        match self {
-            Error::AlreadyExists(e) => e.status(),
-            Error::LockPoisoned(e) => e.status(),
-        }
-    }
-}
-
-impl Anomaly for Error {}
-
-impl DbError for Error {}
 
 #[cfg(test)]
 #[path = "error_tests.rs"]
