@@ -1,0 +1,38 @@
+# DynamoDB Implementation — Review Notes
+
+- [ ] Delete this file before merging.
+
+## Correctness
+
+- [ ] **Sequence ID gaps on process failure.** `next_seq_id` atomically increments the counter, but if the process dies before `append_event` completes the sequence ID is lost forever, leaving a gap in the log. Decide whether gaps are acceptable, or whether the counter should only advance on successful write (e.g. use a conditional put on the counter item itself, or derive the next ID from the last written event key).
+
+- [ ] **Sequence ID consistency.** The counter uses `ADD` (eventually consistent read path on the update). Confirm whether DynamoDB `UpdateItem` with `ReturnValue::UpdatedNew` gives a strongly consistent view of the counter or whether two concurrent callers can receive the same ID.
+
+- [ ] **Consistent writes for event append.** `append_event_async` uses `attribute_not_exists(sk)` — confirm this is a strongly consistent conditional write and that it correctly rejects a duplicate at the same key. Document the chosen consistency model explicitly.
+
+- [ ] **GSI `seq-index` is an API error.** `get_record(SequenceId)` and `get_effect_for_event(SequenceId)` omit `community_id`, but every item in the table belongs to a community. These port methods should take a `CommunityId` parameter and use the main table's PK rather than a GSI, eliminating the GSI entirely.
+
+- [ ] **SDK errors mapped to a single anomaly type.** All `SdkError` variants (throttling, provisioned throughput exceeded, network timeout, unretryable client errors, etc.) are collapsed into `Error::Sdk { category: unavailable }`. Each should be inspected and mapped to the appropriate anomaly category/status so that callers can make correct retry decisions without parsing the message string.
+
+- [ ] **`query_events_by_type` hard-codes a dummy Gift payload to extract the type name** (`event_log_repo.rs:325`). `event_type_name` should take the variant discriminant directly (e.g. a plain string constant or a separate enum) rather than constructing a throwaway value with fabricated field data.
+
+- [ ] **`query_events_by_type` inlines the EVENT SK range** (`event_log_repo.rs:263`) instead of calling `sk_event_range`. Use the existing helper for consistency.
+
+## Architecture
+
+- [ ] **Async should be defined at the domain boundary.** The async helpers (`get_record_async`, etc.) are an accidental layer caused by bridging sync ports to an async SDK. The ports themselves should be defined as `async fn` in the domain, removing the need for the private async twin methods and the owned `tokio::runtime::Runtime`.
+
+## Reliability
+
+- [ ] **Retry/back-off on concurrent event append.** If two writers race to append at the same sequence ID, one will get `AlreadyExists`. Decide whether the repo should transparently retry with a fresh sequence ID, or surface the conflict to the caller and let the service layer decide.
+
+## Testing
+
+- [ ] **100% line coverage.** Every line in the crate must be exercised by unit tests using a mocked DynamoDB client.
+
+- [ ] **100% mutation coverage.** Run `cargo-mutants` (or equivalent) against the crate and drive the mutation score to 100% using the same mock-based unit test suite. The Localstack integration tests cover happy-path wiring, not exhaustive branch coverage.
+
+- [ ] **Localstack test bed.** No integration tests exist yet. Set up a Localstack container (Docker Compose or similar) and a test harness that:
+  - provisions the table and GSI on startup
+  - runs integration tests for both `EventLogRepo` and `CommunityRepo`
+  - optionally wires the command-line service to Localstack for end-to-end smoke testing
