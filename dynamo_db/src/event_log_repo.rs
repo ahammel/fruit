@@ -22,11 +22,8 @@ use crate::{
 ///
 /// Uses a single-table design with `pk = community_id` and
 /// `sk = {ENTITY_TYPE}#{seq_id_zero_padded_20}`. Events, effects, and a global
-/// sequence counter all live in the same table.
-///
-/// A GSI named `seq-index` (PK: `seq` N) supports the two operations that look
-/// up by sequence ID without a community ID ([`get_record`] and
-/// [`get_effect_for_event`]).
+/// sequence counter all live in the same table. All queries use the main table
+/// partition key; no GSI is required.
 ///
 /// The constructor accepts an already-built [`aws_sdk_dynamodb::Client`]. The
 /// struct owns a [`tokio::runtime::Runtime`] used to drive async SDK calls from
