@@ -13,7 +13,7 @@ use newtype_ids_uuid::UuidIdentifier as _;
 use crate::{
     dto::event::{
         build_records, decode_effect, decode_event, encode_effect, encode_event, sk_effect,
-        sk_effect_range_after, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
+        sk_effect_range_after, sk_event, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
     },
     error::{sdk_err, Entity, Error},
 };
@@ -129,28 +129,51 @@ impl DynamoDbEventLogRepo {
 
     // ── Core async implementations ────────────────────────────────────────────
 
-    async fn get_record_async(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        let items = self
+    async fn get_record_async(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
+        let pk = community_id.as_uuid().to_string();
+        let event_sk = sk_event(id);
+        let effect_sk = sk_effect(id);
+
+        let keys: Vec<HashMap<String, AttributeValue>> = vec![
+            HashMap::from([
+                ("pk".to_string(), AttributeValue::S(pk.clone())),
+                ("sk".to_string(), AttributeValue::S(event_sk)),
+            ]),
+            HashMap::from([
+                ("pk".to_string(), AttributeValue::S(pk.clone())),
+                ("sk".to_string(), AttributeValue::S(effect_sk)),
+            ]),
+        ];
+        let kaa = KeysAndAttributes::builder()
+            .set_keys(Some(keys))
+            .build()
+            .map_err(|e| Exn::new(sdk_err("failed to build batch-get keys", e)))?;
+
+        let resp = self
             .client
-            .query()
-            .table_name(&self.table_name)
-            .index_name("seq-index")
-            .key_condition_expression("#seq = :seq")
-            .expression_attribute_names("#seq", "seq")
-            .expression_attribute_values(":seq", AttributeValue::N(id.as_u64().to_string()))
+            .batch_get_item()
+            .request_items(&self.table_name, kaa)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to query by seq", e)))?
-            .items
-            .unwrap_or_default();
+            .map_err(|e| Exn::new(sdk_err("failed to batch-get record", e)))?;
 
         let mut event_item = None;
         let mut effect_item = None;
-        for item in items {
-            match item.get("sk").and_then(|v| v.as_s().ok()) {
-                Some(sk) if sk.starts_with("EVENT#") => event_item = Some(item),
-                Some(sk) if sk.starts_with("EFFECT#") => effect_item = Some(item),
-                _ => {}
+        if let Some(items) = resp
+            .responses
+            .as_ref()
+            .and_then(|r| r.get(&self.table_name))
+        {
+            for item in items {
+                match item.get("sk").and_then(|v| v.as_s().ok()) {
+                    Some(sk) if sk.starts_with("EVENT#") => event_item = Some(item.clone()),
+                    Some(sk) if sk.starts_with("EFFECT#") => effect_item = Some(item.clone()),
+                    _ => {}
+                }
             }
         }
 
@@ -164,25 +187,20 @@ impl DynamoDbEventLogRepo {
 
     async fn get_effect_for_event_async(
         &self,
+        community_id: CommunityId,
         event_id: SequenceId,
     ) -> Result<Option<Effect>, Exn<Error>> {
-        let items = self
+        let resp = self
             .client
-            .query()
+            .get_item()
             .table_name(&self.table_name)
-            .index_name("seq-index")
-            .key_condition_expression("#seq = :seq")
-            .expression_attribute_names("#seq", "seq")
-            .expression_attribute_values(":seq", AttributeValue::N(event_id.as_u64().to_string()))
-            .filter_expression("begins_with(sk, :prefix)")
-            .expression_attribute_values(":prefix", AttributeValue::S("EFFECT#".to_string()))
+            .key("pk", AttributeValue::S(community_id.as_uuid().to_string()))
+            .key("sk", AttributeValue::S(sk_effect(event_id)))
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to query effect by seq", e)))?
-            .items
-            .unwrap_or_default();
+            .map_err(|e| Exn::new(sdk_err("failed to get effect", e)))?;
 
-        items.into_iter().next().map(decode_effect).transpose()
+        resp.item.map(decode_effect).transpose()
     }
 
     async fn get_effects_after_async(
@@ -485,12 +503,21 @@ impl DynamoDbEventLogRepo {
 impl EventLogProvider for DynamoDbEventLogRepo {
     type Error = Error;
 
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        self.rt.block_on(self.get_record_async(id))
+    fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
+        self.rt.block_on(self.get_record_async(community_id, id))
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
-        self.rt.block_on(self.get_effect_for_event_async(event_id))
+    fn get_effect_for_event(
+        &self,
+        community_id: CommunityId,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
+        self.rt
+            .block_on(self.get_effect_for_event_async(community_id, event_id))
     }
 
     fn get_effects_after(
@@ -570,12 +597,20 @@ impl EventLogRepo for DynamoDbEventLogRepo {}
 impl EventLogProvider for &DynamoDbEventLogRepo {
     type Error = Error;
 
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        (*self).get_record(id)
+    fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
+        (*self).get_record(community_id, id)
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
-        (*self).get_effect_for_event(event_id)
+    fn get_effect_for_event(
+        &self,
+        community_id: CommunityId,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
+        (*self).get_effect_for_event(community_id, event_id)
     }
 
     fn get_effects_after(

@@ -30,11 +30,15 @@ impl StubEventLog {
 
 impl EventLogProvider for StubEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -132,11 +136,15 @@ impl GiftBetweenGrantsLog {
 
 impl EventLogProvider for GiftBetweenGrantsLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -258,11 +266,15 @@ struct ErrorEventLog;
 
 impl EventLogProvider for ErrorEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
 
@@ -398,11 +410,15 @@ impl OrphanedGrantLog {
 
 impl EventLogProvider for OrphanedGrantLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
@@ -548,10 +564,14 @@ struct GetEffectForEventErrorLog {
 
 impl EventLogProvider for GetEffectForEventErrorLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Err(Exn::new(Error::GrantInterrupted("err".to_string())))
     }
     fn get_effects_after(
@@ -638,10 +658,14 @@ struct AppendEventErrorLog;
 
 impl EventLogProvider for AppendEventErrorLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -741,10 +765,14 @@ impl GetRecordsBetweenErrorLog {
 
 impl EventLogProvider for GetRecordsBetweenErrorLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -833,10 +861,14 @@ impl GetLatestGiftRecordsErrorLog {
 
 impl EventLogProvider for GetLatestGiftRecordsErrorLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -926,10 +958,14 @@ impl AppendEffectErrorLog {
 
 impl EventLogProvider for AppendEffectErrorLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(

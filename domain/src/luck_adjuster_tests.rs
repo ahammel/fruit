@@ -55,11 +55,15 @@ impl MockEventLog {
 
 impl EventLogProvider for MockEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 

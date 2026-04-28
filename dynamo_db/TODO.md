@@ -10,7 +10,7 @@
 
 - [ ] **Consistent writes for event append.** `append_event_async` uses `attribute_not_exists(sk)` — confirm this is a strongly consistent conditional write and that it correctly rejects a duplicate at the same key. Document the chosen consistency model explicitly.
 
-- [ ] **GSI `seq-index` is an API error.** `get_record(SequenceId)` and `get_effect_for_event(SequenceId)` omit `community_id`, but every item in the table belongs to a community. These port methods should take a `CommunityId` parameter and use the main table's PK rather than a GSI, eliminating the GSI entirely.
+- [x] **GSI `seq-index` is an API error.** `get_record(SequenceId)` and `get_effect_for_event(SequenceId)` omit `community_id`, but every item in the table belongs to a community. These port methods should take a `CommunityId` parameter and use the main table's PK rather than a GSI, eliminating the GSI entirely.
 
 - [ ] **SDK errors mapped to a single anomaly type.** All `SdkError` variants (throttling, provisioned throughput exceeded, network timeout, unretryable client errors, etc.) are collapsed into `Error::Sdk { category: unavailable }`. Each should be inspected and mapped to the appropriate anomaly category/status so that callers can make correct retry decisions without parsing the message string.
 

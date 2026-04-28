@@ -23,17 +23,25 @@ impl<E: DbError, ELR: EventLogRepo + EventLogProvider<Error = E>> EventLogStore<
         Self { repo }
     }
 
-    /// Returns the log entry at `id`, or `None` if not found.
-    pub fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    /// Returns the log entry at `id` for `community_id`, or `None` if not found.
+    pub fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         self.repo
-            .get_record(id)
+            .get_record(community_id, id)
             .map_err(|e| StorageLayerError::raise("failed to read event log record", e))
     }
 
     /// Returns the effect with the given ID (equal to its originating event's ID), or `None` if not yet processed.
-    pub fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    pub fn get_effect_for_event(
+        &self,
+        community_id: CommunityId,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         self.repo
-            .get_effect_for_event(event_id)
+            .get_effect_for_event(community_id, event_id)
             .map_err(|e| StorageLayerError::raise("failed to read effect", e))
     }
 

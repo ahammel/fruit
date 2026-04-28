@@ -54,12 +54,17 @@ impl Default for InMemoryEventLogRepo {
 impl EventLogProvider for InMemoryEventLogRepo {
     type Error = Error;
 
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         let event = match self
             .events
             .read()
             .map_err(|e| LockPoisoned::build(&e, Lock::EventLogRead))?
             .get(&id)
+            .filter(|e| e.community_id == community_id)
             .cloned()
         {
             Some(e) => e,
@@ -74,12 +79,17 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(Some(Record { event, effect }))
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        community_id: CommunityId,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(self
             .effects
             .read()
             .map_err(|e| LockPoisoned::build(&e, Lock::EffectLogRead))?
             .get(&event_id)
+            .filter(|e| e.community_id == community_id)
             .cloned())
     }
 
@@ -263,12 +273,20 @@ impl EventLogRepo for InMemoryEventLogRepo {}
 impl EventLogProvider for &InMemoryEventLogRepo {
     type Error = Error;
 
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Error>> {
-        (*self).get_record(id)
+    fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
+        (*self).get_record(community_id, id)
     }
 
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
-        (*self).get_effect_for_event(event_id)
+    fn get_effect_for_event(
+        &self,
+        community_id: CommunityId,
+        event_id: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
+        (*self).get_effect_for_event(community_id, event_id)
     }
 
     fn get_effects_after(

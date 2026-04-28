@@ -69,10 +69,14 @@ struct ErrorEventLog;
 
 impl EventLogProvider for ErrorEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_effects_after(
@@ -136,10 +140,14 @@ struct EmptyEffectsEventLog;
 
 impl EventLogProvider for EmptyEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -182,10 +190,14 @@ struct OneEffectEventLog {
 
 impl EventLogProvider for OneEffectEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -345,10 +357,14 @@ impl MultiPageEffectsEventLog {
 
 impl EventLogProvider for MultiPageEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -418,10 +434,14 @@ impl TwoPageEffectsEventLog {
 
 impl EventLogProvider for TwoPageEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(
@@ -502,10 +522,14 @@ impl FirstPageThenErrorEventLog {
 
 impl EventLogProvider for FirstPageThenErrorEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
     fn get_effects_after(

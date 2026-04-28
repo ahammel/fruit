@@ -72,7 +72,7 @@ where
         let latest_is_orphaned = match recent_grants.first() {
             Some(e) => self
                 .event_log
-                .get_effect_for_event(e.id)
+                .get_effect_for_event(e.community_id, e.id)
                 .map_err(|e| {
                     let msg =
                         "failed to read effect while testing whether latest grant is in orphaned";

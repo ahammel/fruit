@@ -11,13 +11,18 @@ pub trait EventLogProvider {
     /// The error type returned by storage operations.
     type Error: DbError;
 
-    /// Returns the log entry at `id`, or `None` if not found.
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Exn<Self::Error>>;
+    /// Returns the log entry at `id` for `community_id`, or `None` if not found.
+    fn get_record(
+        &self,
+        community_id: CommunityId,
+        id: SequenceId,
+    ) -> Result<Option<Record>, Exn<Self::Error>>;
 
     /// Returns the effect with the given ID (equal to its originating event's ID),
     /// or `None` if the event has not yet been processed.
     fn get_effect_for_event(
         &self,
+        community_id: CommunityId,
         event_id: SequenceId,
     ) -> Result<Option<Effect>, Exn<Self::Error>>;
 

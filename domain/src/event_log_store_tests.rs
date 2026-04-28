@@ -21,10 +21,14 @@ struct ErrorRepo;
 
 impl EventLogProvider for ErrorRepo {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    fn get_record(&self, _: CommunityId, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Err(err())
     }
     fn get_effects_after(
@@ -84,7 +88,7 @@ fn store() -> EventLogStore<ErrorRepo> {
 fn get_record_propagates_error() {
     assert_eq!(
         store()
-            .get_record(SequenceId::zero())
+            .get_record(CommunityId::new(), SequenceId::zero())
             .unwrap_err()
             .to_string(),
         "Storage layer error: failed to read event log record"
@@ -95,7 +99,7 @@ fn get_record_propagates_error() {
 fn get_effect_for_event_propagates_error() {
     assert_eq!(
         store()
-            .get_effect_for_event(SequenceId::zero())
+            .get_effect_for_event(CommunityId::new(), SequenceId::zero())
             .unwrap_err()
             .to_string(),
         "Storage layer error: failed to read effect"
