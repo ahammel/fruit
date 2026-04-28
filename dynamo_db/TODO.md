@@ -14,7 +14,7 @@
 
 - [ ] **SDK errors mapped to a single anomaly type.** All `SdkError` variants (throttling, provisioned throughput exceeded, network timeout, unretryable client errors, etc.) are collapsed into `Error::Sdk { category: unavailable }`. Each should be inspected and mapped to the appropriate anomaly category/status so that callers can make correct retry decisions without parsing the message string.
 
-- [ ] **`query_events_by_type` hard-codes a dummy Gift payload to extract the type name** (`event_log_repo.rs:325`). `event_type_name` should take the variant discriminant directly (e.g. a plain string constant or a separate enum) rather than constructing a throwaway value with fabricated field data.
+- [x] **`query_events_by_type` hard-codes a dummy Gift payload to extract the type name** (`event_log_repo.rs:325`). `event_type_name` should take the variant discriminant directly (e.g. a plain string constant or a separate enum) rather than constructing a throwaway value with fabricated field data.
 
 - [ ] **`query_events_by_type` inlines the EVENT SK range** (`event_log_repo.rs:263`) instead of calling `sk_event_range`. Use the existing helper for consistency.
 

@@ -372,16 +372,24 @@ pub(crate) struct EffectItem {
     pub mutations: Vec<StateMutationDto>,
 }
 
-/// Returns the payload variant name used as the `event_type` DynamoDB attribute.
+pub(crate) const EVENT_TYPE_GRANT: &str = "Grant";
+pub(crate) const EVENT_TYPE_ADD_MEMBER: &str = "AddMember";
+pub(crate) const EVENT_TYPE_REMOVE_MEMBER: &str = "RemoveMember";
+pub(crate) const EVENT_TYPE_SET_COMMUNITY_LUCK: &str = "SetCommunityLuck";
+pub(crate) const EVENT_TYPE_SET_MEMBER_LUCK: &str = "SetMemberLuck";
+pub(crate) const EVENT_TYPE_GIFT: &str = "Gift";
+pub(crate) const EVENT_TYPE_BURN: &str = "Burn";
+
+/// Returns the `event_type` DynamoDB attribute value for a payload variant.
 pub(crate) fn event_type_name(payload: &EventPayload) -> &'static str {
     match payload {
-        EventPayload::Grant { .. } => "Grant",
-        EventPayload::AddMember { .. } => "AddMember",
-        EventPayload::RemoveMember { .. } => "RemoveMember",
-        EventPayload::SetCommunityLuck { .. } => "SetCommunityLuck",
-        EventPayload::SetMemberLuck { .. } => "SetMemberLuck",
-        EventPayload::Gift { .. } => "Gift",
-        EventPayload::Burn { .. } => "Burn",
+        EventPayload::Grant { .. } => EVENT_TYPE_GRANT,
+        EventPayload::AddMember { .. } => EVENT_TYPE_ADD_MEMBER,
+        EventPayload::RemoveMember { .. } => EVENT_TYPE_REMOVE_MEMBER,
+        EventPayload::SetCommunityLuck { .. } => EVENT_TYPE_SET_COMMUNITY_LUCK,
+        EventPayload::SetMemberLuck { .. } => EVENT_TYPE_SET_MEMBER_LUCK,
+        EventPayload::Gift { .. } => EVENT_TYPE_GIFT,
+        EventPayload::Burn { .. } => EVENT_TYPE_BURN,
     }
 }
 

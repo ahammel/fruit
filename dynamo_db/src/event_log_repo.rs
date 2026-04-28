@@ -12,8 +12,8 @@ use newtype_ids_uuid::UuidIdentifier as _;
 
 use crate::{
     dto::event::{
-        build_records, decode_effect, decode_event, encode_effect, encode_event, event_type_name,
-        sk_effect, sk_effect_range_after, sk_event_range,
+        build_records, decode_effect, decode_event, encode_effect, encode_event, sk_effect,
+        sk_effect_range_after, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
     },
     error::{sdk_err, Entity, Error},
 };
@@ -313,11 +313,7 @@ impl DynamoDbEventLogRepo {
         limit: usize,
     ) -> Result<Vec<Event>, Exn<Error>> {
         let items = self
-            .query_events_by_type(
-                community_id,
-                event_type_name(&EventPayload::Grant { count: 0 }),
-                limit,
-            )
+            .query_events_by_type(community_id, EVENT_TYPE_GRANT, limit)
             .await?;
         items.into_iter().map(decode_event).collect()
     }
@@ -327,14 +323,8 @@ impl DynamoDbEventLogRepo {
         community_id: CommunityId,
         limit: usize,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        let gift_type = event_type_name(&EventPayload::Gift {
-            sender_id: fruit_domain::member::MemberId::new(),
-            recipient_id: fruit_domain::member::MemberId::new(),
-            fruit: fruit_domain::fruit::GRAPES,
-            message: None,
-        });
         let event_items = self
-            .query_events_by_type(community_id, gift_type, limit)
+            .query_events_by_type(community_id, EVENT_TYPE_GIFT, limit)
             .await?;
 
         let seq_ids: Vec<SequenceId> = event_items
