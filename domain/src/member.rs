@@ -69,7 +69,7 @@ impl Member {
     }
 
     /// Returns the raw internal luck value in `[0, 255]`.
-    pub(crate) fn luck_raw(&self) -> u8 {
+    pub fn luck_raw(&self) -> u8 {
         self._luck
     }
 
