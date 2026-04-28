@@ -20,7 +20,7 @@
 
 ## Architecture
 
-- [ ] **Async should be defined at the domain boundary.** The async helpers (`get_record_async`, etc.) are an accidental layer caused by bridging sync ports to an async SDK. The ports themselves should be defined as `async fn` in the domain, removing the need for the private async twin methods and the owned `tokio::runtime::Runtime`.
+- [x] **Async should be defined at the domain boundary.** The async helpers (`get_record_async`, etc.) are an accidental layer caused by bridging sync ports to an async SDK. The ports themselves should be defined as `async fn` in the domain, removing the need for the private async twin methods and the owned `tokio::runtime::Runtime`.
 
 ## Reliability
 
@@ -33,6 +33,6 @@
 - [ ] **100% mutation coverage.** Run `cargo-mutants` (or equivalent) against the crate and drive the mutation score to 100% using the same mock-based unit test suite. The Localstack integration tests cover happy-path wiring, not exhaustive branch coverage.
 
 - [ ] **Localstack test bed.** No integration tests exist yet. Set up a Localstack container (Docker Compose or similar) and a test harness that:
-  - provisions the table and GSI on startup
+  - provisions the table on startup
   - runs integration tests for both `EventLogRepo` and `CommunityRepo`
   - optionally wires the command-line service to Localstack for end-to-end smoke testing

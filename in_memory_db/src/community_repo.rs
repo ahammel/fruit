@@ -3,6 +3,7 @@ use std::{
     sync::RwLock,
 };
 
+use async_trait::async_trait;
 use exn::Exn;
 
 use fruit_domain::{
@@ -41,10 +42,15 @@ impl Default for InMemoryCommunityRepo {
     }
 }
 
+#[async_trait]
 impl CommunityProvider for InMemoryCommunityRepo {
     type Error = Error;
 
-    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(
+        &self,
+        id: CommunityId,
+        version: SequenceId,
+    ) -> Result<Option<Community>, Exn<Error>> {
         Ok(self
             .store
             .read()
@@ -54,7 +60,7 @@ impl CommunityProvider for InMemoryCommunityRepo {
             .cloned())
     }
 
-    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self
             .store
             .read()
@@ -65,10 +71,11 @@ impl CommunityProvider for InMemoryCommunityRepo {
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for InMemoryCommunityRepo {
     type Error = Error;
 
-    fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
         let mut store = self
             .store
             .write()
@@ -84,23 +91,29 @@ impl CommunityPersistor for InMemoryCommunityRepo {
 
 impl CommunityRepo for InMemoryCommunityRepo {}
 
+#[async_trait]
 impl CommunityProvider for &InMemoryCommunityRepo {
     type Error = Error;
 
-    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Exn<Error>> {
-        (*self).get(id, version)
+    async fn get(
+        &self,
+        id: CommunityId,
+        version: SequenceId,
+    ) -> Result<Option<Community>, Exn<Error>> {
+        (*self).get(id, version).await
     }
 
-    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
-        (*self).get_latest(id)
+    async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+        (*self).get_latest(id).await
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for &InMemoryCommunityRepo {
     type Error = Error;
 
-    fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
-        (*self).put(community)
+    async fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
+        (*self).put(community).await
     }
 }
 

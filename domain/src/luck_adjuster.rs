@@ -40,14 +40,15 @@ where
     ///    community with the same ID if none is stored).
     /// 3. Fetches all records in the window and up to 100 recent gift records.
     /// 4. Delegates to [`luck_adjustments::compute`].
-    pub fn compute(
+    pub async fn compute(
         &self,
         community: &Community,
         before: SequenceId,
     ) -> Result<Vec<StateMutation>, Exn<E>> {
         let prev_grant_id = self
             .event_log
-            .get_latest_grant_events(community.id, 1)?
+            .get_latest_grant_events(community.id, 1)
+            .await?
             .into_iter()
             .next()
             .map(|e| e.id)
@@ -55,14 +56,19 @@ where
 
         let community_at_last_grant = self
             .community_provider
-            .get(community.id, prev_grant_id)?
+            .get(community.id, prev_grant_id)
+            .await?
             .unwrap_or_else(|| Community::new().with_id(community.id));
 
-        let records_since_last_grant =
-            self.event_log
-                .get_records_between(community.id, prev_grant_id, before)?;
+        let records_since_last_grant = self
+            .event_log
+            .get_records_between(community.id, prev_grant_id, before)
+            .await?;
 
-        let recent_gift_records = self.event_log.get_latest_gift_records(community.id, 100)?;
+        let recent_gift_records = self
+            .event_log
+            .get_latest_gift_records(community.id, 100)
+            .await?;
 
         Ok(luck_adjustments::compute(
             &community_at_last_grant,

@@ -56,7 +56,7 @@ where
     /// 4. Apply luck mutations to a community snapshot.
     /// 5. Call `granter.grant` on the adjusted snapshot.
     /// 6. Persist the combined effect.
-    pub fn grant_fruit(
+    pub async fn grant_fruit(
         &mut self,
         community: &Community,
         count: usize,
@@ -64,6 +64,7 @@ where
         let recent_grants = self
             .event_log
             .get_latest_grant_events(community.id, 2)
+            .await
             .map_err(|e| {
                 let msg = "failed to read grant events to check for in-progress grant";
                 StorageLayerError::raise(msg, e)
@@ -73,6 +74,7 @@ where
             Some(e) => self
                 .event_log
                 .get_effect_for_event(e.community_id, e.id)
+                .await
                 .map_err(|e| {
                     let msg =
                         "failed to read effect while testing whether latest grant is in orphaned";
@@ -96,6 +98,7 @@ where
             let event = self
                 .event_log
                 .append_event(community.id, EventPayload::Grant { count })
+                .await
                 .map_err(|e| StorageLayerError::raise("failed to create grant event", e))?;
             (event, prev)
         };
@@ -106,6 +109,7 @@ where
         let community_at_last_grant = self
             .community_provider
             .get(community.id, prev_grant_id)
+            .await
             .or_raise(|| {
                 Error::GrantInterrupted(
                     "failed to read latest community while processing grant".to_string(),
@@ -116,6 +120,7 @@ where
         let records_since_last_grant = self
             .event_log
             .get_records_between(community.id, prev_grant_id, grant_event.id)
+            .await
             .or_raise(|| {
                 Error::GrantInterrupted("failed to read records between grants".to_string())
             })?;
@@ -123,6 +128,7 @@ where
         let recent_gift_records = self
             .event_log
             .get_latest_gift_records(community.id, 100)
+            .await
             .or_raise(|| {
                 Error::GrantInterrupted(
                     "failed to read gift history while processing grant".to_string(),
@@ -148,6 +154,7 @@ where
         let all_mutations = [luck_mutations, fruit_mutations].concat();
         self.event_log
             .append_effect(grant_event.id, community.id, all_mutations.clone())
+            .await
             .or_raise(|| Error::GrantInterrupted("failed to create grant effect".to_string()))?;
 
         Ok(all_mutations)

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anomalies = "0.2.2"
+async-trait = "0.1"
 aws-config = "1"
 aws-sdk-dynamodb = "1"
 exn = "0.3.0"

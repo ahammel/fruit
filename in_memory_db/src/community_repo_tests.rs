@@ -35,115 +35,129 @@ fn poisoned_store() -> RwLock<HashMap<CommunityId, BTreeMap<SequenceId, Communit
 
 // --- default ---
 
-#[test]
-fn default_produces_empty_repo() {
+#[tokio::test]
+async fn default_produces_empty_repo() {
     assert!(InMemoryCommunityRepo::default()
         .get(CommunityId::new(), SequenceId::zero())
+        .await
         .unwrap()
         .is_none());
 }
 
 // --- poisoned lock error paths ---
 
-#[test]
-fn get_returns_err_when_lock_is_poisoned() {
+#[tokio::test]
+async fn get_returns_err_when_lock_is_poisoned() {
     let repo = InMemoryCommunityRepo {
         store: poisoned_store(),
     };
-    assert!(repo.get(CommunityId::new(), SequenceId::zero()).is_err());
+    assert!(repo
+        .get(CommunityId::new(), SequenceId::zero())
+        .await
+        .is_err());
 }
 
-#[test]
-fn get_latest_returns_err_when_lock_is_poisoned() {
+#[tokio::test]
+async fn get_latest_returns_err_when_lock_is_poisoned() {
     let repo = InMemoryCommunityRepo {
         store: poisoned_store(),
     };
-    assert!(repo.get_latest(CommunityId::new()).is_err());
+    assert!(repo.get_latest(CommunityId::new()).await.is_err());
 }
 
-#[test]
-fn put_returns_err_when_lock_is_poisoned() {
+#[tokio::test]
+async fn put_returns_err_when_lock_is_poisoned() {
     let repo = InMemoryCommunityRepo {
         store: poisoned_store(),
     };
-    assert!(repo.put(Community::new()).is_err());
+    assert!(repo.put(Community::new()).await.is_err());
 }
 
 // --- repo: put ---
 
-#[test]
-fn repo_get_returns_none_for_unknown_id() {
+#[tokio::test]
+async fn repo_get_returns_none_for_unknown_id() {
     assert!(repo()
         .get(CommunityId::new(), SequenceId::zero())
+        .await
         .unwrap()
         .is_none());
 }
 
-#[test]
-fn repo_get_latest_returns_none_for_unknown_id() {
-    assert!(repo().get_latest(CommunityId::new()).unwrap().is_none());
+#[tokio::test]
+async fn repo_get_latest_returns_none_for_unknown_id() {
+    assert!(repo()
+        .get_latest(CommunityId::new())
+        .await
+        .unwrap()
+        .is_none());
 }
 
-#[test]
-fn repo_put_and_get_round_trips_community() {
+#[tokio::test]
+async fn repo_put_and_get_round_trips_community() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
     let version = community.version;
-    repo.put(community.clone()).unwrap();
-    assert_eq!(repo.get(id, version).unwrap(), Some(community));
+    repo.put(community.clone()).await.unwrap();
+    assert_eq!(repo.get(id, version).await.unwrap(), Some(community));
 }
 
-#[test]
-fn repo_put_and_get_latest_returns_latest() {
+#[tokio::test]
+async fn repo_put_and_get_latest_returns_latest() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
-    repo.put(community.clone()).unwrap();
-    assert_eq!(repo.get_latest(id).unwrap(), Some(community));
+    repo.put(community.clone()).await.unwrap();
+    assert_eq!(repo.get_latest(id).await.unwrap(), Some(community));
 }
 
-#[test]
-fn repo_put_fails_on_duplicate_version() {
+#[tokio::test]
+async fn repo_put_fails_on_duplicate_version() {
     let repo = repo();
     let community = Community::new();
-    repo.put(community.clone()).unwrap();
-    assert!(repo.put(community).is_err());
+    repo.put(community.clone()).await.unwrap();
+    assert!(repo.put(community).await.is_err());
 }
 
 // --- repo: get_latest ---
 
-#[test]
-fn repo_get_latest_returns_highest_version() {
+#[tokio::test]
+async fn repo_get_latest_returns_highest_version() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
     let v0 = community.version;
-    repo.put(community).unwrap();
+    repo.put(community).await.unwrap();
     let v1 = SequenceId::new(1);
     let newer = Community::new().with_id(id).with_luck(50).with_version(v1);
-    repo.put(newer.clone()).unwrap();
-    assert_eq!(repo.get_latest(id).unwrap(), Some(newer));
-    assert!(repo.get(id, v0).unwrap().is_some());
+    repo.put(newer.clone()).await.unwrap();
+    assert_eq!(repo.get_latest(id).await.unwrap(), Some(newer));
+    assert!(repo.get(id, v0).await.unwrap().is_some());
 }
 
 // --- store ---
 
-#[test]
-fn store_get_returns_none_for_unknown_id() {
+#[tokio::test]
+async fn store_get_returns_none_for_unknown_id() {
     assert!(store()
         .get(CommunityId::new(), SequenceId::zero())
+        .await
         .unwrap()
         .is_none());
 }
 
-#[test]
-fn store_get_latest_returns_none_for_unknown_id() {
-    assert!(store().get_latest(CommunityId::new()).unwrap().is_none());
+#[tokio::test]
+async fn store_get_latest_returns_none_for_unknown_id() {
+    assert!(store()
+        .get_latest(CommunityId::new())
+        .await
+        .unwrap()
+        .is_none());
 }
 
-#[test]
-fn store_get_latest_applies_pending_effects_with_owned_event_log() {
+#[tokio::test]
+async fn store_get_latest_applies_pending_effects_with_owned_event_log() {
     use crate::event_log_repo::InMemoryEventLogRepo;
     use fruit_domain::{
         event_log::EventPayload, event_log::StateMutation, event_log_repo::EventLogPersistor,
@@ -160,6 +174,7 @@ fn store_get_latest_applies_pending_effects_with_owned_event_log() {
     let event_log = InMemoryEventLogRepo::new();
     let event = event_log
         .append_event(id, EventPayload::Grant { count: 1 })
+        .await
         .unwrap();
     event_log
         .append_effect(
@@ -170,29 +185,33 @@ fn store_get_latest_applies_pending_effects_with_owned_event_log() {
                 fruit: STRAWBERRY,
             }],
         )
+        .await
         .unwrap();
 
     // Store community at version zero, then hand ownership of the log to the store.
     let repo = InMemoryCommunityRepo::new();
-    repo.put(community).unwrap();
+    repo.put(community).await.unwrap();
     let store = CommunityStore::new(repo, event_log);
 
     // get_latest must apply the pending effect and advance the version.
-    let latest = store.get_latest(id).unwrap().unwrap();
+    let latest = store.get_latest(id).await.unwrap().unwrap();
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
 }
 
 // --- store: init / get_latest with multiple effects ---
 
-#[test]
-fn store_init_creates_persisted_community() {
+#[tokio::test]
+async fn store_init_creates_persisted_community() {
     let store = store();
-    let community = store.init().unwrap();
-    assert_eq!(store.get_latest(community.id).unwrap(), Some(community));
+    let community = store.init().await.unwrap();
+    assert_eq!(
+        store.get_latest(community.id).await.unwrap(),
+        Some(community)
+    );
 }
 
-#[test]
-fn store_get_latest_applies_multiple_pending_effects() {
+#[tokio::test]
+async fn store_get_latest_applies_multiple_pending_effects() {
     use fruit_domain::{event_log::StateMutation, fruit::STRAWBERRY, member::Member};
 
     // Start with a bare community (no members yet).
@@ -211,6 +230,7 @@ fn store_get_latest_applies_multiple_pending_effects() {
                 member_id: alice_id,
             },
         )
+        .await
         .unwrap();
     event_log
         .append_effect(
@@ -218,9 +238,11 @@ fn store_get_latest_applies_multiple_pending_effects() {
             id,
             vec![StateMutation::AddMember { member: alice }],
         )
+        .await
         .unwrap();
     let grant_event = event_log
         .append_event(id, EventPayload::Grant { count: 1 })
+        .await
         .unwrap();
     event_log
         .append_effect(
@@ -231,20 +253,21 @@ fn store_get_latest_applies_multiple_pending_effects() {
                 fruit: STRAWBERRY,
             }],
         )
+        .await
         .unwrap();
 
     // Hand ownership of the log to the store and apply effects via get_latest.
     let repo = InMemoryCommunityRepo::new();
-    repo.put(community).unwrap();
+    repo.put(community).await.unwrap();
     let store = CommunityStore::new(repo, event_log);
 
-    let latest = store.get_latest(id).unwrap().unwrap();
+    let latest = store.get_latest(id).await.unwrap().unwrap();
     assert_eq!(latest.members[&alice_id].bag.count(STRAWBERRY), 1);
     assert_eq!(latest.version, grant_event.id); // effect and event share the same ID
 }
 
-#[test]
-fn store_get_latest_paginates_through_effects_exceeding_page_size() {
+#[tokio::test]
+async fn store_get_latest_paginates_through_effects_exceeding_page_size() {
     // Appends EFFECTS_PAGE_SIZE + 1 effects so get_latest must loop a second time,
     // covering the loop-continues branch in the InMemory monomorphization.
     use fruit_domain::event_log::SequenceId;
@@ -256,68 +279,72 @@ fn store_get_latest_paginates_through_effects_exceeding_page_size() {
     for _ in 0..n {
         let event = event_log
             .append_event(id, EventPayload::Grant { count: 0 })
+            .await
             .unwrap();
-        event_log.append_effect(event.id, id, vec![]).unwrap();
+        event_log.append_effect(event.id, id, vec![]).await.unwrap();
     }
     let repo = InMemoryCommunityRepo::new();
-    repo.put(community).unwrap();
+    repo.put(community).await.unwrap();
     let store = CommunityStore::new(repo, event_log);
-    let latest = store.get_latest(id).unwrap().unwrap();
+    let latest = store.get_latest(id).await.unwrap().unwrap();
     assert_eq!(latest.version, SequenceId::from(n as u64));
 }
 
 // --- &InMemoryCommunityRepo delegation ---
 
-fn via_provider_get<T: CommunityProvider>(
+async fn via_provider_get<T: CommunityProvider>(
     p: T,
     id: CommunityId,
     version: SequenceId,
 ) -> Result<Option<Community>, Exn<T::Error>> {
-    p.get(id, version)
+    p.get(id, version).await
 }
 
-fn via_provider_get_latest<T: CommunityProvider>(
+async fn via_provider_get_latest<T: CommunityProvider>(
     p: T,
     id: CommunityId,
 ) -> Result<Option<Community>, Exn<T::Error>> {
-    p.get_latest(id)
+    p.get_latest(id).await
 }
 
-fn via_persistor_put<T: CommunityPersistor>(
+async fn via_persistor_put<T: CommunityPersistor>(
     p: T,
     community: Community,
 ) -> Result<Community, Exn<T::Error>> {
-    p.put(community)
+    p.put(community).await
 }
 
-#[test]
-fn ref_delegates_get() {
+#[tokio::test]
+async fn ref_delegates_get() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
     let version = community.version;
-    repo.put(community.clone()).unwrap();
+    repo.put(community.clone()).await.unwrap();
     assert_eq!(
-        via_provider_get(&repo, id, version).unwrap(),
+        via_provider_get(&repo, id, version).await.unwrap(),
         Some(community)
     );
 }
 
-#[test]
-fn ref_delegates_get_latest() {
+#[tokio::test]
+async fn ref_delegates_get_latest() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
-    repo.put(community.clone()).unwrap();
-    assert_eq!(via_provider_get_latest(&repo, id).unwrap(), Some(community));
+    repo.put(community.clone()).await.unwrap();
+    assert_eq!(
+        via_provider_get_latest(&repo, id).await.unwrap(),
+        Some(community)
+    );
 }
 
-#[test]
-fn ref_delegates_put() {
+#[tokio::test]
+async fn ref_delegates_put() {
     let repo = repo();
     let community = Community::new();
     let id = community.id;
     let version = community.version;
-    via_persistor_put(&repo, community.clone()).unwrap();
-    assert_eq!(repo.get(id, version).unwrap(), Some(community));
+    via_persistor_put(&repo, community.clone()).await.unwrap();
+    assert_eq!(repo.get(id, version).await.unwrap(), Some(community));
 }

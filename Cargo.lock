@@ -32,6 +32,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -775,6 +786,7 @@ dependencies = [
  "fruit-domain",
  "fruit-in-memory-db",
  "rand",
+ "tokio",
 ]
 
 [[package]]
@@ -782,6 +794,7 @@ name = "fruit-domain"
 version = "0.1.0"
 dependencies = [
  "anomalies",
+ "async-trait",
  "bon",
  "exn",
  "newtype-ids",
@@ -789,6 +802,7 @@ dependencies = [
  "rand",
  "regex",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -797,6 +811,7 @@ name = "fruit-dynamo-db"
 version = "0.1.0"
 dependencies = [
  "anomalies",
+ "async-trait",
  "aws-config",
  "aws-sdk-dynamodb",
  "exn",
@@ -815,12 +830,14 @@ name = "fruit-in-memory-db"
 version = "0.1.0"
 dependencies = [
  "anomalies",
+ "async-trait",
  "exn",
  "fruit-domain",
  "newtype-ids",
  "newtype-ids-uuid",
  "regex",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -1889,7 +1906,19 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.3",
+ "tokio-macros",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "385a6cb71ab9ab790c5fe8d67f1645e6c450a7ce006a33de03daa956cf70a496"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

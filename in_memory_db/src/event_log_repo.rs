@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use async_trait::async_trait;
 use exn::Exn;
 use fruit_domain::{
     community::CommunityId,
@@ -51,10 +52,11 @@ impl Default for InMemoryEventLogRepo {
     }
 }
 
+#[async_trait]
 impl EventLogProvider for InMemoryEventLogRepo {
     type Error = Error;
 
-    fn get_record(
+    async fn get_record(
         &self,
         community_id: CommunityId,
         id: SequenceId,
@@ -79,7 +81,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(Some(Record { event, effect }))
     }
 
-    fn get_effect_for_event(
+    async fn get_effect_for_event(
         &self,
         community_id: CommunityId,
         event_id: SequenceId,
@@ -93,7 +95,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
             .cloned())
     }
 
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         community_id: CommunityId,
         limit: usize,
@@ -112,7 +114,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(effects)
     }
 
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         community_id: CommunityId,
         limit: usize,
@@ -139,7 +141,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(records)
     }
 
-    fn get_latest_grant_events(
+    async fn get_latest_grant_events(
         &self,
         community_id: CommunityId,
         limit: usize,
@@ -163,7 +165,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(events)
     }
 
-    fn get_latest_gift_records(
+    async fn get_latest_gift_records(
         &self,
         community_id: CommunityId,
         limit: usize,
@@ -194,7 +196,7 @@ impl EventLogProvider for InMemoryEventLogRepo {
         Ok(records)
     }
 
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         community_id: CommunityId,
         after: SequenceId,
@@ -220,10 +222,11 @@ impl EventLogProvider for InMemoryEventLogRepo {
     }
 }
 
+#[async_trait]
 impl EventLogPersistor for InMemoryEventLogRepo {
     type Error = Error;
 
-    fn append_event(
+    async fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
@@ -245,7 +248,7 @@ impl EventLogPersistor for InMemoryEventLogRepo {
         Ok(event)
     }
 
-    fn append_effect(
+    async fn append_effect(
         &self,
         event_id: SequenceId,
         community_id: CommunityId,
@@ -270,87 +273,95 @@ impl EventLogPersistor for InMemoryEventLogRepo {
 
 impl EventLogRepo for InMemoryEventLogRepo {}
 
+#[async_trait]
 impl EventLogProvider for &InMemoryEventLogRepo {
     type Error = Error;
 
-    fn get_record(
+    async fn get_record(
         &self,
         community_id: CommunityId,
         id: SequenceId,
     ) -> Result<Option<Record>, Exn<Error>> {
-        (*self).get_record(community_id, id)
+        (*self).get_record(community_id, id).await
     }
 
-    fn get_effect_for_event(
+    async fn get_effect_for_event(
         &self,
         community_id: CommunityId,
         event_id: SequenceId,
     ) -> Result<Option<Effect>, Exn<Error>> {
-        (*self).get_effect_for_event(community_id, event_id)
+        (*self).get_effect_for_event(community_id, event_id).await
     }
 
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         community_id: CommunityId,
         limit: usize,
         after: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        (*self).get_effects_after(community_id, limit, after)
+        (*self).get_effects_after(community_id, limit, after).await
     }
 
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         community_id: CommunityId,
         limit: usize,
         before: Option<SequenceId>,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        (*self).get_records_before(community_id, limit, before)
+        (*self)
+            .get_records_before(community_id, limit, before)
+            .await
     }
 
-    fn get_latest_grant_events(
+    async fn get_latest_grant_events(
         &self,
         community_id: CommunityId,
         limit: usize,
     ) -> Result<Vec<Event>, Exn<Error>> {
-        (*self).get_latest_grant_events(community_id, limit)
+        (*self).get_latest_grant_events(community_id, limit).await
     }
 
-    fn get_latest_gift_records(
+    async fn get_latest_gift_records(
         &self,
         community_id: CommunityId,
         limit: usize,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        (*self).get_latest_gift_records(community_id, limit)
+        (*self).get_latest_gift_records(community_id, limit).await
     }
 
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         community_id: CommunityId,
         after: SequenceId,
         before: SequenceId,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        (*self).get_records_between(community_id, after, before)
+        (*self)
+            .get_records_between(community_id, after, before)
+            .await
     }
 }
 
+#[async_trait]
 impl EventLogPersistor for &InMemoryEventLogRepo {
     type Error = Error;
 
-    fn append_event(
+    async fn append_event(
         &self,
         community_id: CommunityId,
         payload: EventPayload,
     ) -> Result<Event, Exn<Error>> {
-        (*self).append_event(community_id, payload)
+        (*self).append_event(community_id, payload).await
     }
 
-    fn append_effect(
+    async fn append_effect(
         &self,
         event_id: SequenceId,
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
     ) -> Result<Effect, Exn<Error>> {
-        (*self).append_effect(event_id, community_id, mutations)
+        (*self)
+            .append_effect(event_id, community_id, mutations)
+            .await
     }
 }
 
