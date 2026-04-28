@@ -31,7 +31,11 @@ impl DynamoDbCommunityRepo {
     /// Creates a new `DynamoDbCommunityRepo` backed by the given client and table.
     pub fn new(client: aws_sdk_dynamodb::Client, table_name: impl Into<String>) -> Self {
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
-        Self { client, table_name: table_name.into(), rt }
+        Self {
+            client,
+            table_name: table_name.into(),
+            rt,
+        }
     }
 
     // ── Async helpers ─────────────────────────────────────────────────────────
@@ -57,10 +61,7 @@ impl DynamoDbCommunityRepo {
         resp.item.map(decode_community).transpose()
     }
 
-    async fn get_latest_async(
-        &self,
-        id: CommunityId,
-    ) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest_async(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         let pk = id.as_uuid().to_string();
         let (sk_lo, sk_hi) = sk_community_range();
 

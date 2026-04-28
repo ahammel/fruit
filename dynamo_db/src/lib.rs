@@ -6,6 +6,6 @@
 //! sequence ID.
 
 pub mod community_repo;
+mod dto;
 pub mod error;
 pub mod event_log_repo;
-mod dto;

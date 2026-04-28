@@ -43,10 +43,14 @@ pub enum Entity {
 
 /// Builds an [`Error::Sdk`] from any displayable value.
 pub(crate) fn sdk_err(context: &str, e: impl std::fmt::Display) -> Error {
-    Error::Sdk { message: format!("{context}: {e}") }
+    Error::Sdk {
+        message: format!("{context}: {e}"),
+    }
 }
 
 /// Builds an [`Error::Codec`] from any displayable value.
 pub(crate) fn codec_err(context: &str, e: impl std::fmt::Display) -> Error {
-    Error::Codec { message: format!("{context}: {e}") }
+    Error::Codec {
+        message: format!("{context}: {e}"),
+    }
 }

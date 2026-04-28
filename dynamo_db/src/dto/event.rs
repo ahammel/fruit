@@ -26,7 +26,9 @@ fn fruit_from_name(name: &str) -> Result<Fruit, Error> {
         .iter()
         .copied()
         .find(|f| f.name == name)
-        .ok_or_else(|| Error::Codec { message: format!("unknown fruit '{name}'") })
+        .ok_or_else(|| Error::Codec {
+            message: format!("unknown fruit '{name}'"),
+        })
 }
 
 // ── ID helpers ────────────────────────────────────────────────────────────────
@@ -48,20 +50,43 @@ fn community_id_from_str(s: &str) -> Result<CommunityId, Error> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub(crate) enum EventPayloadDto {
-    Grant { count: usize },
-    AddMember { display_name: String, member_id: String },
-    RemoveMember { member_id: String },
-    SetCommunityLuck { luck: u8 },
-    SetMemberLuck { member_id: String, luck: u8 },
-    Gift { sender_id: String, recipient_id: String, fruit: String, message: Option<String> },
-    Burn { member_id: String, fruits: Vec<String> },
+    Grant {
+        count: usize,
+    },
+    AddMember {
+        display_name: String,
+        member_id: String,
+    },
+    RemoveMember {
+        member_id: String,
+    },
+    SetCommunityLuck {
+        luck: u8,
+    },
+    SetMemberLuck {
+        member_id: String,
+        luck: u8,
+    },
+    Gift {
+        sender_id: String,
+        recipient_id: String,
+        fruit: String,
+        message: Option<String>,
+    },
+    Burn {
+        member_id: String,
+        fruits: Vec<String>,
+    },
 }
 
 impl From<&EventPayload> for EventPayloadDto {
     fn from(p: &EventPayload) -> Self {
         match p {
             EventPayload::Grant { count } => EventPayloadDto::Grant { count: *count },
-            EventPayload::AddMember { display_name, member_id } => EventPayloadDto::AddMember {
+            EventPayload::AddMember {
+                display_name,
+                member_id,
+            } => EventPayloadDto::AddMember {
                 display_name: display_name.clone(),
                 member_id: member_id.as_uuid().to_string(),
             },
@@ -75,7 +100,12 @@ impl From<&EventPayload> for EventPayloadDto {
                 member_id: member_id.as_uuid().to_string(),
                 luck: *luck,
             },
-            EventPayload::Gift { sender_id, recipient_id, fruit, message } => EventPayloadDto::Gift {
+            EventPayload::Gift {
+                sender_id,
+                recipient_id,
+                fruit,
+                message,
+            } => EventPayloadDto::Gift {
                 sender_id: sender_id.as_uuid().to_string(),
                 recipient_id: recipient_id.as_uuid().to_string(),
                 fruit: fruit_name(*fruit),
@@ -95,27 +125,44 @@ impl TryFrom<EventPayloadDto> for EventPayload {
     fn try_from(dto: EventPayloadDto) -> Result<Self, Error> {
         Ok(match dto {
             EventPayloadDto::Grant { count } => EventPayload::Grant { count },
-            EventPayloadDto::AddMember { display_name, member_id: mid } => {
-                EventPayload::AddMember { display_name, member_id: member_id(&mid)? }
-            }
-            EventPayloadDto::RemoveMember { member_id: mid } => {
-                EventPayload::RemoveMember { member_id: member_id(&mid)? }
-            }
-            EventPayloadDto::SetCommunityLuck { luck } => EventPayload::SetCommunityLuck { luck },
-            EventPayloadDto::SetMemberLuck { member_id: mid, luck } => {
-                EventPayload::SetMemberLuck { member_id: member_id(&mid)?, luck }
-            }
-            EventPayloadDto::Gift { sender_id, recipient_id, fruit, message } => {
-                EventPayload::Gift {
-                    sender_id: member_id(&sender_id)?,
-                    recipient_id: member_id(&recipient_id)?,
-                    fruit: fruit_from_name(&fruit)?,
-                    message,
-                }
-            }
-            EventPayloadDto::Burn { member_id: mid, fruits } => EventPayload::Burn {
+            EventPayloadDto::AddMember {
+                display_name,
+                member_id: mid,
+            } => EventPayload::AddMember {
+                display_name,
                 member_id: member_id(&mid)?,
-                fruits: fruits.iter().map(|n| fruit_from_name(n)).collect::<Result<_, _>>()?,
+            },
+            EventPayloadDto::RemoveMember { member_id: mid } => EventPayload::RemoveMember {
+                member_id: member_id(&mid)?,
+            },
+            EventPayloadDto::SetCommunityLuck { luck } => EventPayload::SetCommunityLuck { luck },
+            EventPayloadDto::SetMemberLuck {
+                member_id: mid,
+                luck,
+            } => EventPayload::SetMemberLuck {
+                member_id: member_id(&mid)?,
+                luck,
+            },
+            EventPayloadDto::Gift {
+                sender_id,
+                recipient_id,
+                fruit,
+                message,
+            } => EventPayload::Gift {
+                sender_id: member_id(&sender_id)?,
+                recipient_id: member_id(&recipient_id)?,
+                fruit: fruit_from_name(&fruit)?,
+                message,
+            },
+            EventPayloadDto::Burn {
+                member_id: mid,
+                fruits,
+            } => EventPayload::Burn {
+                member_id: member_id(&mid)?,
+                fruits: fruits
+                    .iter()
+                    .map(|n| fruit_from_name(n))
+                    .collect::<Result<_, _>>()?,
             },
         })
     }
@@ -154,9 +201,9 @@ impl From<&StateMutation> for StateMutationDto {
                     fruit: fruit_name(*fruit),
                 }
             }
-            StateMutation::AddMember { member } => {
-                StateMutationDto::AddMember { member: MemberDto::from(member) }
-            }
+            StateMutation::AddMember { member } => StateMutationDto::AddMember {
+                member: MemberDto::from(member),
+            },
             StateMutation::RemoveMember { member_id } => StateMutationDto::RemoveMember {
                 member_id: member_id.as_uuid().to_string(),
             },
@@ -198,40 +245,56 @@ impl TryFrom<StateMutationDto> for StateMutation {
 
     fn try_from(dto: StateMutationDto) -> Result<Self, Error> {
         Ok(match dto {
-            StateMutationDto::AddFruitToMember { member_id: mid, fruit } => {
-                StateMutation::AddFruitToMember {
-                    member_id: member_id(&mid)?,
-                    fruit: fruit_from_name(&fruit)?,
-                }
-            }
-            StateMutationDto::RemoveFruitFromMember { member_id: mid, fruit } => {
-                StateMutation::RemoveFruitFromMember {
-                    member_id: member_id(&mid)?,
-                    fruit: fruit_from_name(&fruit)?,
-                }
-            }
-            StateMutationDto::AddMember { member } => {
-                StateMutation::AddMember { member: Member::try_from(member)? }
-            }
-            StateMutationDto::RemoveMember { member_id: mid } => {
-                StateMutation::RemoveMember { member_id: member_id(&mid)? }
-            }
-            StateMutationDto::SetCommunityLuck { luck } => {
-                StateMutation::SetCommunityLuck { luck }
-            }
-            StateMutationDto::SetMemberLuck { member_id: mid, luck } => {
-                StateMutation::SetMemberLuck { member_id: member_id(&mid)?, luck }
-            }
-            StateMutationDto::GiftLuckBonus { member_id: mid, delta } => {
-                StateMutation::GiftLuckBonus { member_id: member_id(&mid)?, delta }
-            }
+            StateMutationDto::AddFruitToMember {
+                member_id: mid,
+                fruit,
+            } => StateMutation::AddFruitToMember {
+                member_id: member_id(&mid)?,
+                fruit: fruit_from_name(&fruit)?,
+            },
+            StateMutationDto::RemoveFruitFromMember {
+                member_id: mid,
+                fruit,
+            } => StateMutation::RemoveFruitFromMember {
+                member_id: member_id(&mid)?,
+                fruit: fruit_from_name(&fruit)?,
+            },
+            StateMutationDto::AddMember { member } => StateMutation::AddMember {
+                member: Member::try_from(member)?,
+            },
+            StateMutationDto::RemoveMember { member_id: mid } => StateMutation::RemoveMember {
+                member_id: member_id(&mid)?,
+            },
+            StateMutationDto::SetCommunityLuck { luck } => StateMutation::SetCommunityLuck { luck },
+            StateMutationDto::SetMemberLuck {
+                member_id: mid,
+                luck,
+            } => StateMutation::SetMemberLuck {
+                member_id: member_id(&mid)?,
+                luck,
+            },
+            StateMutationDto::GiftLuckBonus {
+                member_id: mid,
+                delta,
+            } => StateMutation::GiftLuckBonus {
+                member_id: member_id(&mid)?,
+                delta,
+            },
             StateMutationDto::BurnLuckBonus { delta } => StateMutation::BurnLuckBonus { delta },
-            StateMutationDto::OstentatiousGiftPenalty { member_id: mid, delta } => {
-                StateMutation::OstentatiousGiftPenalty { member_id: member_id(&mid)?, delta }
-            }
-            StateMutationDto::OstentatiousBurnPenalty { member_id: mid, delta } => {
-                StateMutation::OstentatiousBurnPenalty { member_id: member_id(&mid)?, delta }
-            }
+            StateMutationDto::OstentatiousGiftPenalty {
+                member_id: mid,
+                delta,
+            } => StateMutation::OstentatiousGiftPenalty {
+                member_id: member_id(&mid)?,
+                delta,
+            },
+            StateMutationDto::OstentatiousBurnPenalty {
+                member_id: mid,
+                delta,
+            } => StateMutation::OstentatiousBurnPenalty {
+                member_id: member_id(&mid)?,
+                delta,
+            },
             StateMutationDto::QuidProQuoPenalty { delta } => {
                 StateMutation::QuidProQuoPenalty { delta }
             }
@@ -259,7 +322,11 @@ impl From<&Member> for MemberDto {
             id: m.id.as_uuid().to_string(),
             display_name: m.display_name.clone(),
             luck: m.luck_raw(),
-            bag: m.bag.iter().map(|(fruit, count)| (fruit_name(fruit), count)).collect(),
+            bag: m
+                .bag
+                .iter()
+                .map(|(fruit, count)| (fruit_name(fruit), count))
+                .collect(),
         }
     }
 }
@@ -270,14 +337,14 @@ impl TryFrom<MemberDto> for Member {
     fn try_from(dto: MemberDto) -> Result<Self, Error> {
         use fruit_domain::bag::Bag;
         let id = member_id(&dto.id)?;
-        let bag = dto
-            .bag
-            .iter()
-            .try_fold(Bag::new(), |bag, (name, &count)| {
-                let fruit = fruit_from_name(name)?;
-                Ok((0..count).fold(bag, |b, _| b.insert(fruit)))
-            })?;
-        Ok(Member::new(dto.display_name).with_id(id).with_luck(dto.luck).with_bag(bag))
+        let bag = dto.bag.iter().try_fold(Bag::new(), |bag, (name, &count)| {
+            let fruit = fruit_from_name(name)?;
+            Ok((0..count).fold(bag, |b, _| b.insert(fruit)))
+        })?;
+        Ok(Member::new(dto.display_name)
+            .with_id(id)
+            .with_luck(dto.luck)
+            .with_bag(bag))
     }
 }
 
@@ -336,10 +403,13 @@ pub(crate) fn encode_event(event: &Event) -> Result<HashMap<String, AttributeVal
 pub(crate) fn decode_event(item: HashMap<String, AttributeValue>) -> Result<Event, Exn<Error>> {
     let dto: EventItem = serde_dynamo::aws_sdk_dynamodb_1::from_item(item)
         .map_err(|e| Exn::new(codec_err("failed to decode event", e)))?;
-    let community_id =
-        community_id_from_str(&dto.pk).map_err(Exn::new)?;
+    let community_id = community_id_from_str(&dto.pk).map_err(Exn::new)?;
     let payload = EventPayload::try_from(dto.payload).map_err(Exn::new)?;
-    Ok(Event { id: SequenceId::new(dto.seq), community_id, payload })
+    Ok(Event {
+        id: SequenceId::new(dto.seq),
+        community_id,
+        payload,
+    })
 }
 
 /// Encodes an [`Effect`] into a DynamoDB attribute map.
@@ -351,7 +421,11 @@ pub(crate) fn encode_effect(
         sk: sk_effect(effect.id),
         seq: effect.id.as_u64(),
         entity_type: "EFFECT".to_string(),
-        mutations: effect.mutations.iter().map(StateMutationDto::from).collect(),
+        mutations: effect
+            .mutations
+            .iter()
+            .map(StateMutationDto::from)
+            .collect(),
     };
     serde_dynamo::aws_sdk_dynamodb_1::to_item(&item)
         .map_err(|e| Exn::new(codec_err("failed to encode effect", e)))
@@ -368,7 +442,11 @@ pub(crate) fn decode_effect(item: HashMap<String, AttributeValue>) -> Result<Eff
         .map(StateMutation::try_from)
         .collect::<Result<Vec<_>, _>>()
         .map_err(Exn::new)?;
-    Ok(Effect { id: SequenceId::new(dto.seq), community_id, mutations })
+    Ok(Effect {
+        id: SequenceId::new(dto.seq),
+        community_id,
+        mutations,
+    })
 }
 
 /// Assembles [`Record`]s by pairing events with their effects from separate item maps.

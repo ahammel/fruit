@@ -42,7 +42,11 @@ impl DynamoDbEventLogRepo {
     /// Creates a new `DynamoDbEventLogRepo` backed by the given client and table.
     pub fn new(client: aws_sdk_dynamodb::Client, table_name: impl Into<String>) -> Self {
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
-        Self { client, table_name: table_name.into(), rt }
+        Self {
+            client,
+            table_name: table_name.into(),
+            rt,
+        }
     }
 
     // ── Sequence counter ──────────────────────────────────────────────────────
@@ -150,7 +154,9 @@ impl DynamoDbEventLogRepo {
             }
         }
 
-        let Some(ev_item) = event_item else { return Ok(None) };
+        let Some(ev_item) = event_item else {
+            return Ok(None);
+        };
         let event = decode_event(ev_item)?;
         let effect = effect_item.map(decode_effect).transpose()?;
         Ok(Some(Record { event, effect }))
@@ -307,7 +313,11 @@ impl DynamoDbEventLogRepo {
         limit: usize,
     ) -> Result<Vec<Event>, Exn<Error>> {
         let items = self
-            .query_events_by_type(community_id, event_type_name(&EventPayload::Grant { count: 0 }), limit)
+            .query_events_by_type(
+                community_id,
+                event_type_name(&EventPayload::Grant { count: 0 }),
+                limit,
+            )
             .await?;
         items.into_iter().map(decode_event).collect()
     }
@@ -323,7 +333,9 @@ impl DynamoDbEventLogRepo {
             fruit: fruit_domain::fruit::GRAPES,
             message: None,
         });
-        let event_items = self.query_events_by_type(community_id, gift_type, limit).await?;
+        let event_items = self
+            .query_events_by_type(community_id, gift_type, limit)
+            .await?;
 
         let seq_ids: Vec<SequenceId> = event_items
             .iter()
@@ -400,7 +412,11 @@ impl DynamoDbEventLogRepo {
         payload: EventPayload,
     ) -> Result<Event, Exn<Error>> {
         let id = self.next_seq_id().await?;
-        let event = Event { id, community_id, payload };
+        let event = Event {
+            id,
+            community_id,
+            payload,
+        };
         let item = encode_event(&event)?;
 
         match self
@@ -438,7 +454,11 @@ impl DynamoDbEventLogRepo {
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
     ) -> Result<Effect, Exn<Error>> {
-        let effect = Effect { id: event_id, community_id, mutations };
+        let effect = Effect {
+            id: event_id,
+            community_id,
+            mutations,
+        };
         let item = encode_effect(&effect)?;
 
         match self
@@ -490,7 +510,8 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         limit: usize,
         after: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        self.rt.block_on(self.get_effects_after_async(community_id, limit, after))
+        self.rt
+            .block_on(self.get_effects_after_async(community_id, limit, after))
     }
 
     fn get_records_before(
@@ -499,7 +520,8 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         limit: usize,
         before: Option<SequenceId>,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        self.rt.block_on(self.get_records_before_async(community_id, limit, before))
+        self.rt
+            .block_on(self.get_records_before_async(community_id, limit, before))
     }
 
     fn get_latest_grant_events(
@@ -507,7 +529,8 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         community_id: CommunityId,
         limit: usize,
     ) -> Result<Vec<Event>, Exn<Error>> {
-        self.rt.block_on(self.get_latest_grant_events_async(community_id, limit))
+        self.rt
+            .block_on(self.get_latest_grant_events_async(community_id, limit))
     }
 
     fn get_latest_gift_records(
@@ -515,7 +538,8 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         community_id: CommunityId,
         limit: usize,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        self.rt.block_on(self.get_latest_gift_records_async(community_id, limit))
+        self.rt
+            .block_on(self.get_latest_gift_records_async(community_id, limit))
     }
 
     fn get_records_between(
@@ -524,7 +548,8 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         after: SequenceId,
         before: SequenceId,
     ) -> Result<Vec<Record>, Exn<Error>> {
-        self.rt.block_on(self.get_records_between_async(community_id, after, before))
+        self.rt
+            .block_on(self.get_records_between_async(community_id, after, before))
     }
 }
 
@@ -536,7 +561,8 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
         community_id: CommunityId,
         payload: EventPayload,
     ) -> Result<Event, Exn<Error>> {
-        self.rt.block_on(self.append_event_async(community_id, payload))
+        self.rt
+            .block_on(self.append_event_async(community_id, payload))
     }
 
     fn append_effect(
@@ -545,7 +571,8 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
         community_id: CommunityId,
         mutations: Vec<StateMutation>,
     ) -> Result<Effect, Exn<Error>> {
-        self.rt.block_on(self.append_effect_async(event_id, community_id, mutations))
+        self.rt
+            .block_on(self.append_effect_async(event_id, community_id, mutations))
     }
 }
 
