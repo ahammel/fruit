@@ -16,7 +16,7 @@
 
 - [x] **`query_events_by_type` hard-codes a dummy Gift payload to extract the type name** (`event_log_repo.rs:325`). `event_type_name` should take the variant discriminant directly (e.g. a plain string constant or a separate enum) rather than constructing a throwaway value with fabricated field data.
 
-- [ ] **`query_events_by_type` inlines the EVENT SK range** (`event_log_repo.rs:263`) instead of calling `sk_event_range`. Use the existing helper for consistency.
+- [x] **`query_events_by_type` inlines the EVENT SK range** (`event_log_repo.rs:263`) instead of calling `sk_event_range`. Use the existing helper for consistency.
 
 ## Architecture
 

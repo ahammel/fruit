@@ -265,8 +265,7 @@ impl DynamoDbEventLogRepo {
         limit: usize,
     ) -> Result<Vec<HashMap<String, AttributeValue>>, Exn<Error>> {
         let pk = community_id.as_uuid().to_string();
-        let lower = format!("EVENT#{:020}", 1u64);
-        let upper = format!("EVENT#{:020}", u64::MAX);
+        let (lower, upper) = sk_event_range(SequenceId::new(0), None);
         let mut results = Vec::new();
         let mut last_key: Option<HashMap<String, AttributeValue>> = None;
 
