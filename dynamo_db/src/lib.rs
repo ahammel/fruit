@@ -7,5 +7,6 @@
 
 pub mod community_repo;
 mod dto;
+mod dyanmo_sdk_anomaly;
 pub mod error;
 pub mod event_log_repo;

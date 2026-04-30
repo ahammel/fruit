@@ -10,7 +10,7 @@ use newtype_ids_uuid::UuidIdentifier as _;
 
 use crate::{
     dto::community::{decode_community, encode_community, sk_community, sk_community_range},
-    error::{sdk_err, Entity, Error},
+    error::{raise_sdk_err, Entity, Error},
 };
 
 /// DynamoDB implementation of [`CommunityRepo`].
@@ -56,7 +56,7 @@ impl CommunityProvider for DynamoDbCommunityRepo {
             .key("sk", AttributeValue::S(sk))
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("get_item (community)", e)))?;
+            .map_err(|e| raise_sdk_err("get_item (community)", e))?;
 
         resp.item.map(decode_community).transpose()
     }
@@ -77,7 +77,7 @@ impl CommunityProvider for DynamoDbCommunityRepo {
             .limit(1)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("query (latest community)", e)))?;
+            .map_err(|e| raise_sdk_err("query (latest community)", e))?;
 
         resp.items
             .unwrap_or_default()
@@ -126,15 +126,19 @@ impl CommunityPersistor for DynamoDbCommunityRepo {
         match result {
             Ok(_) => Ok(community),
             Err(e) => {
-                let se = e.into_service_error();
-                if se.is_conditional_check_failed_exception() {
+                let is_conflict = matches!(
+                    &e,
+                    aws_sdk_dynamodb::error::SdkError::ServiceError(se)
+                        if se.err().is_conditional_check_failed_exception()
+                );
+                if is_conflict {
                     Err(Exn::new(Error::AlreadyExists {
                         community: community.id,
                         version: community.version,
                         entity: Entity::Community,
                     }))
                 } else {
-                    Err(Exn::new(sdk_err("put_item (community)", se)))
+                    Err(raise_sdk_err("put_item (community)", e))
                 }
             }
         }

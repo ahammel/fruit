@@ -16,7 +16,7 @@ use crate::{
         build_records, decode_effect, decode_event, encode_effect, encode_event, sk_effect,
         sk_effect_range_after, sk_event, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
     },
-    error::{sdk_err, Entity, Error},
+    error::{raise_build_err, raise_sdk_err, Entity, Error},
 };
 
 /// DynamoDB implementation of [`EventLogRepo`].
@@ -56,7 +56,7 @@ impl DynamoDbEventLogRepo {
             .return_values(ReturnValue::UpdatedNew)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to increment sequence counter", e)))?;
+            .map_err(|e| raise_sdk_err("failed to increment sequence counter", e))?;
 
         let n = resp
             .attributes()
@@ -96,7 +96,7 @@ impl DynamoDbEventLogRepo {
             let kaa = KeysAndAttributes::builder()
                 .set_keys(Some(keys))
                 .build()
-                .map_err(|e| Exn::new(sdk_err("failed to build batch-get keys", e)))?;
+                .map_err(|e| raise_build_err("failed to build batch-get keys", e))?;
 
             let resp = self
                 .client
@@ -104,7 +104,7 @@ impl DynamoDbEventLogRepo {
                 .request_items(&self.table_name, kaa)
                 .send()
                 .await
-                .map_err(|e| Exn::new(sdk_err("failed to batch-get effects", e)))?;
+                .map_err(|e| raise_sdk_err("failed to batch-get effects", e))?;
 
             if let Some(responses) = resp.responses {
                 if let Some(items) = responses.get(&self.table_name) {
@@ -154,7 +154,7 @@ impl DynamoDbEventLogRepo {
             let resp = req
                 .send()
                 .await
-                .map_err(|e| Exn::new(sdk_err("failed to query events by type", e)))?;
+                .map_err(|e| raise_sdk_err("failed to query events by type", e))?;
 
             let items = resp.items.unwrap_or_default();
             let remaining = limit - results.len();
@@ -198,7 +198,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         let kaa = KeysAndAttributes::builder()
             .set_keys(Some(keys))
             .build()
-            .map_err(|e| Exn::new(sdk_err("failed to build batch-get keys", e)))?;
+            .map_err(|e| raise_build_err("failed to build batch-get keys", e))?;
 
         let resp = self
             .client
@@ -206,7 +206,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .request_items(&self.table_name, kaa)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to batch-get record", e)))?;
+            .map_err(|e| raise_sdk_err("failed to batch-get record", e))?;
 
         let mut event_item = None;
         let mut effect_item = None;
@@ -245,7 +245,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .key("sk", AttributeValue::S(sk_effect(event_id)))
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to get effect", e)))?;
+            .map_err(|e| raise_sdk_err("failed to get effect", e))?;
 
         resp.item.map(decode_effect).transpose()
     }
@@ -272,7 +272,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .limit(limit as i32)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to query effects", e)))?
+            .map_err(|e| raise_sdk_err("failed to query effects", e))?
             .items
             .unwrap_or_default();
 
@@ -303,7 +303,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .limit(limit as i32)
             .send()
             .await
-            .map_err(|e| Exn::new(sdk_err("failed to query records", e)))?
+            .map_err(|e| raise_sdk_err("failed to query records", e))?
             .items
             .unwrap_or_default();
 
@@ -386,7 +386,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             let resp = req
                 .send()
                 .await
-                .map_err(|e| Exn::new(sdk_err("failed to query records between", e)))?;
+                .map_err(|e| raise_sdk_err("failed to query records between", e))?;
 
             event_items.extend(resp.items.unwrap_or_default());
 
@@ -451,7 +451,7 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
                         entity: Entity::Event,
                     }))
                 } else {
-                    Err(Exn::new(sdk_err("failed to write event", e)))
+                    Err(raise_sdk_err("failed to write event", e))
                 }
             }
         }
@@ -493,7 +493,7 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
                         entity: Entity::Effect,
                     }))
                 } else {
-                    Err(Exn::new(sdk_err("failed to write effect", e)))
+                    Err(raise_sdk_err("failed to write effect", e))
                 }
             }
         }

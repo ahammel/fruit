@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::event::MemberDto;
-use crate::error::{codec_err, Error};
+use crate::error::{raise_codec_err, Error};
 
 // ── CommunityDto ──────────────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ pub(crate) fn encode_community(
             .collect(),
     };
     serde_dynamo::aws_sdk_dynamodb_1::to_item(&item)
-        .map_err(|e| Exn::new(codec_err("failed to encode community", e)))
+        .map_err(|e| raise_codec_err("failed to encode community", e))
 }
 
 /// Decodes a DynamoDB attribute map into a [`Community`].
@@ -63,11 +63,11 @@ pub(crate) fn decode_community(
     item: HashMap<String, AttributeValue>,
 ) -> Result<Community, Exn<Error>> {
     let dto: CommunityItem = serde_dynamo::aws_sdk_dynamodb_1::from_item(item)
-        .map_err(|e| Exn::new(codec_err("failed to decode community", e)))?;
+        .map_err(|e| raise_codec_err("failed to decode community", e))?;
 
     let community_id = Uuid::parse_str(&dto.pk)
         .map(CommunityId::from)
-        .map_err(|e| Exn::new(codec_err("invalid community pk", e)))?;
+        .map_err(|e| raise_codec_err("invalid community pk", e))?;
 
     let members: HashMap<_, Member> = dto
         .members

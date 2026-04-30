@@ -13,7 +13,7 @@ use newtype_ids_uuid::UuidIdentifier as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::{codec_err, Error};
+use crate::error::{raise_codec_err, Error};
 
 // ── Fruit codec ───────────────────────────────────────────────────────────────
 
@@ -34,7 +34,9 @@ fn fruit_from_name(name: &str) -> Result<Fruit, Error> {
 // ── ID helpers ────────────────────────────────────────────────────────────────
 
 fn parse_uuid(s: &str, context: &str) -> Result<Uuid, Error> {
-    Uuid::parse_str(s).map_err(|e| codec_err(context, e))
+    Uuid::parse_str(s).map_err(|e| Error::Codec {
+        message: format!("{context}: {e}"),
+    })
 }
 
 fn member_id(s: &str) -> Result<MemberId, Error> {
@@ -404,13 +406,13 @@ pub(crate) fn encode_event(event: &Event) -> Result<HashMap<String, AttributeVal
         payload: EventPayloadDto::from(&event.payload),
     };
     serde_dynamo::aws_sdk_dynamodb_1::to_item(&item)
-        .map_err(|e| Exn::new(codec_err("failed to encode event", e)))
+        .map_err(|e| raise_codec_err("failed to encode event", e))
 }
 
 /// Decodes a DynamoDB attribute map into an [`Event`].
 pub(crate) fn decode_event(item: HashMap<String, AttributeValue>) -> Result<Event, Exn<Error>> {
     let dto: EventItem = serde_dynamo::aws_sdk_dynamodb_1::from_item(item)
-        .map_err(|e| Exn::new(codec_err("failed to decode event", e)))?;
+        .map_err(|e| raise_codec_err("failed to decode event", e))?;
     let community_id = community_id_from_str(&dto.pk).map_err(Exn::new)?;
     let payload = EventPayload::try_from(dto.payload).map_err(Exn::new)?;
     Ok(Event {
@@ -436,13 +438,13 @@ pub(crate) fn encode_effect(
             .collect(),
     };
     serde_dynamo::aws_sdk_dynamodb_1::to_item(&item)
-        .map_err(|e| Exn::new(codec_err("failed to encode effect", e)))
+        .map_err(|e| raise_codec_err("failed to encode effect", e))
 }
 
 /// Decodes a DynamoDB attribute map into an [`Effect`].
 pub(crate) fn decode_effect(item: HashMap<String, AttributeValue>) -> Result<Effect, Exn<Error>> {
     let dto: EffectItem = serde_dynamo::aws_sdk_dynamodb_1::from_item(item)
-        .map_err(|e| Exn::new(codec_err("failed to decode effect", e)))?;
+        .map_err(|e| raise_codec_err("failed to decode effect", e))?;
     let community_id = community_id_from_str(&dto.pk).map_err(Exn::new)?;
     let mutations = dto
         .mutations

@@ -12,7 +12,7 @@
 
 - [x] **GSI `seq-index` is an API error.** `get_record(SequenceId)` and `get_effect_for_event(SequenceId)` omit `community_id`, but every item in the table belongs to a community. These port methods should take a `CommunityId` parameter and use the main table's PK rather than a GSI, eliminating the GSI entirely.
 
-- [ ] **SDK errors mapped to a single anomaly type.** All `SdkError` variants (throttling, provisioned throughput exceeded, network timeout, unretryable client errors, etc.) are collapsed into `Error::Sdk { category: unavailable }`. Each should be inspected and mapped to the appropriate anomaly category/status so that callers can make correct retry decisions without parsing the message string.
+- [x] **SDK errors mapped to a single anomaly type.** All `SdkError` variants (throttling, provisioned throughput exceeded, network timeout, unretryable client errors, etc.) are collapsed into `Error::Sdk { category: unavailable }`. Each should be inspected and mapped to the appropriate anomaly category/status so that callers can make correct retry decisions without parsing the message string.
 
 - [x] **`query_events_by_type` hard-codes a dummy Gift payload to extract the type name** (`event_log_repo.rs:325`). `event_type_name` should take the variant discriminant directly (e.g. a plain string constant or a separate enum) rather than constructing a throwaway value with fabricated field data.
 
