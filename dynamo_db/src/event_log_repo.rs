@@ -428,6 +428,9 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
         };
         let item = encode_event(&event)?;
 
+        // DynamoDB write operations are atomic and always operate on the most recent version
+        // of the item regardless of concurrency (see https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BestPractices_ImplementingVersionControl.html). Two concurrent
+        // callers at the same sk will get exactly one Ok and one ConditionalCheckFailedException.
         match self
             .client
             .put_item()

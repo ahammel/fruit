@@ -8,7 +8,7 @@
 
 - [ ] **Sequence ID consistency.** The counter uses `ADD` (eventually consistent read path on the update). Confirm whether DynamoDB `UpdateItem` with `ReturnValue::UpdatedNew` gives a strongly consistent view of the counter or whether two concurrent callers can receive the same ID.
 
-- [ ] **Consistent writes for event append.** `append_event_async` uses `attribute_not_exists(sk)` — confirm this is a strongly consistent conditional write and that it correctly rejects a duplicate at the same key. Document the chosen consistency model explicitly.
+- [x] **Consistent writes for event append.** `append_event_async` uses `attribute_not_exists(sk)` — confirm this is a strongly consistent conditional write and that it correctly rejects a duplicate at the same key. Document the chosen consistency model explicitly.
 
 - [x] **GSI `seq-index` is an API error.** `get_record(SequenceId)` and `get_effect_for_event(SequenceId)` omit `community_id`, but every item in the table belongs to a community. These port methods should take a `CommunityId` parameter and use the main table's PK rather than a GSI, eliminating the GSI entirely.
 
