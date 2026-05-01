@@ -1,6 +1,11 @@
 # DynamoDB Implementation — Review Notes
 
 - [ ] Delete this file before merging.
+- [ ] **Add a standing pre-merge checklist to `CLAUDE.md`.** Extract the generally-applicable items from this file (docs pass, binary UUIDs, test coverage, etc.) into a reusable checklist in `~/repos/claude-md/CLAUDE.md` under a "Before merging a feature branch" heading so future branches start with the same bar.
+
+## Performance
+
+- [ ] **Store UUID fields as binary.** `pk` and UUID attributes are stored as 36-character hyphenated strings (`AttributeValue::S`). Switching to `AttributeValue::B` (16-byte raw UUID) would reduce item size and read/write costs. Trade-off: binary values appear as Base64 in the console and CLI, making manual inspection harder.
 
 ## Correctness
 
@@ -25,6 +30,10 @@
 ## Reliability
 
 - [ ] **Retry/back-off on concurrent event append.** If two writers race to append at the same sequence ID, one will get `AlreadyExists`. Decide whether the repo should transparently retry with a fresh sequence ID, or surface the conflict to the caller and let the service layer decide.
+
+## Documentation
+
+- [ ] **Documentation pass.** Audit all public members for missing or stale docstrings, update `README.md` and `docs/SPEC.md` to reflect the DynamoDB implementation (table schema, key design, consistency model, counter-per-community design).
 
 ## Testing
 
