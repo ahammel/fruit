@@ -10,7 +10,7 @@ use newtype_ids_uuid::UuidIdentifier as _;
 
 use crate::{
     dto::community::{decode_community, encode_community, sk_community, sk_community_range},
-    error::{raise_sdk_err, Entity, Error},
+    error::{raise_conflict_err, raise_sdk_err, Entity, Error},
 };
 
 /// DynamoDB implementation of [`CommunityRepo`].
@@ -132,11 +132,12 @@ impl CommunityPersistor for DynamoDbCommunityRepo {
                         if se.err().is_conditional_check_failed_exception()
                 );
                 if is_conflict {
-                    Err(Exn::new(Error::AlreadyExists {
-                        community: community.id,
-                        version: community.version,
-                        entity: Entity::Community,
-                    }))
+                    Err(raise_conflict_err(
+                        community.id,
+                        community.version,
+                        Entity::Community,
+                        e,
+                    ))
                 } else {
                     Err(raise_sdk_err("put_item (community)", e))
                 }

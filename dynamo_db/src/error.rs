@@ -120,6 +120,25 @@ pub(crate) fn raise_build_err(
     Error::Sdk(sdk_err).raise()
 }
 
+/// Wraps a conditional-check SDK error as an [`Error::AlreadyExists`], with the original
+/// SDK error in the causality chain.
+pub(crate) fn raise_conflict_err<E>(
+    community: CommunityId,
+    version: SequenceId,
+    entity: Entity,
+    err: SdkError<E>,
+) -> Exn<Error>
+where
+    E: ProvideErrorMetadata + std::error::Error + Send + Sync + 'static,
+{
+    let sdk_anomaly: SdkAnomaly = err.into();
+    Exn::new(sdk_anomaly).raise(Error::AlreadyExists {
+        community,
+        version,
+        entity,
+    })
+}
+
 /// Builds an [`Error::Codec`] from any displayable value.
 pub(crate) fn raise_codec_err<E>(context: impl Into<String>, e: E) -> Exn<Error>
 where

@@ -19,7 +19,7 @@ use crate::{
         build_records, decode_effect, decode_event, encode_effect, encode_event, sk_effect,
         sk_effect_range_after, sk_event, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
     },
-    error::{raise_build_err, raise_sdk_err, Entity, Error},
+    error::{raise_build_err, raise_conflict_err, raise_sdk_err, Entity, Error},
 };
 
 /// DynamoDB implementation of [`EventLogRepo`].
@@ -460,11 +460,7 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
                         if se.err().is_conditional_check_failed_exception()
                 );
                 if is_conflict {
-                    Err(Exn::new(Error::AlreadyExists {
-                        community: community_id,
-                        version: id,
-                        entity: Entity::Event,
-                    }))
+                    Err(raise_conflict_err(community_id, id, Entity::Event, e))
                 } else {
                     Err(raise_sdk_err("failed to write event", e))
                 }
@@ -502,11 +498,12 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
                         if se.err().is_conditional_check_failed_exception()
                 );
                 if is_conflict {
-                    Err(Exn::new(Error::AlreadyExists {
-                        community: community_id,
-                        version: event_id,
-                        entity: Entity::Effect,
-                    }))
+                    Err(raise_conflict_err(
+                        community_id,
+                        event_id,
+                        Entity::Effect,
+                        e,
+                    ))
                 } else {
                     Err(raise_sdk_err("failed to write effect", e))
                 }
