@@ -43,13 +43,13 @@ impl DynamoDbEventLogRepo {
 
     // ── Sequence counter ──────────────────────────────────────────────────────
 
-    async fn next_seq_id(&self) -> Result<SequenceId, Exn<Error>> {
+    async fn next_seq_id(&self, community_id: CommunityId) -> Result<SequenceId, Exn<Error>> {
         let resp = self
             .client
             .update_item()
             .table_name(&self.table_name)
-            .key("pk", AttributeValue::S("__COUNTER__".to_string()))
-            .key("sk", AttributeValue::S("SEQUENCE".to_string()))
+            .key("pk", AttributeValue::S(community_id.as_uuid().to_string()))
+            .key("sk", AttributeValue::S("COUNTER".to_string()))
             .update_expression("ADD #n :inc")
             .expression_attribute_names("#n", "n")
             .expression_attribute_values(":inc", AttributeValue::N("1".to_string()))
@@ -420,7 +420,7 @@ impl EventLogPersistor for DynamoDbEventLogRepo {
         community_id: CommunityId,
         payload: EventPayload,
     ) -> Result<Event, Exn<Error>> {
-        let id = self.next_seq_id().await?;
+        let id = self.next_seq_id(community_id).await?;
         let event = Event {
             id,
             community_id,

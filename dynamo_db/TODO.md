@@ -4,9 +4,9 @@
 
 ## Correctness
 
-- [ ] **Sequence ID gaps on process failure.** `next_seq_id` atomically increments the counter, but if the process dies before `append_event` completes the sequence ID is lost forever, leaving a gap in the log. Decide whether gaps are acceptable, or whether the counter should only advance on successful write (e.g. use a conditional put on the counter item itself, or derive the next ID from the last written event key).
+- [x] **Sequence ID gaps on process failure.** `next_seq_id` atomically increments the counter, but if the process dies before `append_event` completes the sequence ID is lost forever, leaving a gap in the log. Decide whether gaps are acceptable, or whether the counter should only advance on successful write (e.g. use a conditional put on the counter item itself, or derive the next ID from the last written event key). **Decision: gaps are acceptable.**
 
-- [ ] **Sequence ID consistency.** The counter uses `ADD` (eventually consistent read path on the update). Confirm whether DynamoDB `UpdateItem` with `ReturnValue::UpdatedNew` gives a strongly consistent view of the counter or whether two concurrent callers can receive the same ID.
+- [x] **Sequence ID consistency.** The counter uses `ADD` (eventually consistent read path on the update). Confirm whether DynamoDB `UpdateItem` with `ReturnValue::UpdatedNew` gives a strongly consistent view of the counter or whether two concurrent callers can receive the same ID. **Decision: duplicate IDs are acceptable; the second writer will hit the `attribute_not_exists` condition and get `AlreadyExists`, which is the retry signal.**
 
 - [x] **Consistent writes for event append.** `append_event_async` uses `attribute_not_exists(sk)` — confirm this is a strongly consistent conditional write and that it correctly rejects a duplicate at the same key. Document the chosen consistency model explicitly.
 
