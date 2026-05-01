@@ -41,7 +41,6 @@
 
 - [ ] **100% mutation coverage.** Run `cargo-mutants` (or equivalent) against the crate and drive the mutation score to 100% using the same mock-based unit test suite. The Localstack integration tests cover happy-path wiring, not exhaustive branch coverage.
 
-- [ ] **Localstack test bed.** No integration tests exist yet. Set up a Localstack container (Docker Compose or similar) and a test harness that:
-  - provisions the table on startup
-  - runs integration tests for both `EventLogRepo` and `CommunityRepo`
-  - optionally wires the command-line service to Localstack for end-to-end smoke testing
+- [x] **Localstack test bed.** Using `amazon/dynamodb-local` (Docker Compose). Provisions the
+  table on startup; 15 integration tests cover all cross-function execution paths for both
+  `EventLogRepo` and `CommunityRepo`. Run with `make ti` (starts container automatically).
