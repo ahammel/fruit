@@ -33,7 +33,7 @@
 
 ## Documentation
 
-- [ ] **Documentation pass.** Audit all public members for missing or stale docstrings, update `README.md` and `docs/SPEC.md` to reflect the DynamoDB implementation (table schema, key design, consistency model, counter-per-community design).
+- [x] **Documentation pass.** Audit all public members for missing or stale docstrings, update `README.md` and `docs/SPEC.md` to reflect the DynamoDB implementation (table schema, key design, consistency model, counter-per-community design).
 
 ## Testing
 

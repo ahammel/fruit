@@ -43,14 +43,22 @@ pub enum Error {
 
 impl DbError for Error {}
 
-/// Entity kinds stored in DynamoDB.
+/// The entity kind involved in a storage conflict.
 #[derive(Debug)]
 pub enum Entity {
+    /// A community snapshot.
     Community,
+    /// An event item.
     Event,
+    /// An effect item.
     Effect,
 }
 
+/// A classified AWS SDK error carrying retry metadata.
+///
+/// Wraps the underlying [`SdkAnomaly`] and attaches a human-readable context
+/// string. The [`HasCategory`] and [`HasStatus`] implementations let callers
+/// decide whether to retry without parsing the message string.
 #[derive(Debug)]
 pub struct DynamoSdkError {
     context: String,

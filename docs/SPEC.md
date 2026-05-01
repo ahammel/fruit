@@ -25,14 +25,15 @@ Cargo workspace with three crates:
 fruit (workspace)
 ├── domain/               # Pure domain logic; no I/O
 ├── in_memory_db/         # Implements domain storage ports in RAM
+├── dynamo_db/            # Implements domain storage ports against Amazon DynamoDB
 └── command_line_service/ # Wires everything together; hosts the REPL
 ```
 
 ### Dependency rule
 
 All arrows point toward `domain`. `domain` has no outward dependencies on internal
-crates. `in_memory_db` and `command_line_service` depend on `domain`; only
-`command_line_service` depends on `in_memory_db`.
+crates. `in_memory_db`, `dynamo_db`, and `command_line_service` depend on `domain`;
+only `command_line_service` depends on `in_memory_db`.
 
 ---
 
@@ -248,9 +249,9 @@ Round-trips are not exact because not every `f64` in `[0,1]` maps to a distinct 
 ```rust
 pub struct SequenceId(u64);   // implements IntegerIdentifier; zero() is a sentinel
 
-pub enum Record {             // a single log entry
-    Event(Event),
-    Effect(Effect),
+pub struct Record {           // a single log entry: an event paired with its effect
+    pub event:  Event,
+    pub effect: Option<Effect>,  // None if the event has not yet been processed
 }
 
 pub enum EventPayload {
@@ -684,21 +685,24 @@ RandomGranter::new(rng)                       // full FRUITS pool, DefaultFruitW
 
 ### Storage ports (`community_repo.rs`)
 
+All port traits are `async` (via `async_trait`). All methods take `&self` (not `&mut self`);
+implementations manage interior mutability (e.g. via a connection pool or mutex). Return
+types use `Exn<Self::Error>` where `Self::Error: DbError` (see [Error handling](#error-handling)).
+
 ```rust
 pub trait CommunityProvider {
-    fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Error>;
-    fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Error>;
+    type Error: DbError;
+    async fn get(&self, id: CommunityId, version: SequenceId) -> Result<Option<Community>, Exn<Self::Error>>;
+    async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Self::Error>>;
 }
 
 pub trait CommunityPersistor {
-    fn put(&self, community: Community) -> Result<Community, Error>;
+    type Error: DbError;
+    async fn put(&self, community: Community) -> Result<Community, Exn<Self::Error>>;
 }
 
-pub trait CommunityRepo: CommunityProvider + CommunityPersistor {}
+pub trait CommunityRepo: CommunityProvider + CommunityPersistor<Error = <Self as CommunityProvider>::Error> {}
 ```
-
-All methods take `&self` (not `&mut self`). Implementations manage interior mutability
-(e.g. via a connection pool or `RwLock`).
 
 Every community write is a new snapshot version. There is no overwrite/upsert operation:
 communities are always advanced by appending a new version via `put`.
@@ -707,37 +711,37 @@ communities are always advanced by appending a new version via `put`.
 
 ```rust
 pub trait EventLogProvider {
-    fn get_record(&self, id: SequenceId) -> Result<Option<Record>, Error>;
-    fn get_effect_for_event(&self, event_id: SequenceId) -> Result<Option<Effect>, Error>;
-    fn get_effects_after(&self, community_id: CommunityId, limit: usize, after: SequenceId) -> Result<Vec<Effect>, Error>;
-    fn get_records_before(&self, community_id: CommunityId, limit: usize, before: Option<SequenceId>) -> Result<Vec<Record>, Error>;
-    /// Returns up to `limit` events for `community_id` whose payload matches `EventPayload::Grant`,
-    /// sorted descending by sequence ID (most recent first).
-    fn get_latest_grant_events(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Event>, Error>;
-    /// Returns up to `limit` records for `community_id` whose event payload matches
-    /// `EventPayload::Gift`, sorted descending by sequence ID (most recent first).
-    fn get_latest_gift_records(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Record>, Error>;
-    /// Returns all records for `community_id` with sequence ID strictly greater than `after`
-    /// and strictly less than `before`, sorted ascending.
-    fn get_records_between(&self, community_id: CommunityId, after: SequenceId, before: SequenceId) -> Result<Vec<Record>, Error>;
+    type Error: DbError;
+    /// Returns the log entry at `id` for `community_id`, or `None` if not found.
+    async fn get_record(&self, community_id: CommunityId, id: SequenceId) -> Result<Option<Record>, Exn<Self::Error>>;
+    /// Returns the effect at `event_id`, or `None` if the event has not yet been processed.
+    async fn get_effect_for_event(&self, community_id: CommunityId, event_id: SequenceId) -> Result<Option<Effect>, Exn<Self::Error>>;
+    /// Returns up to `limit` effects with sequence ID > `after`, ascending. Keyset cursor: pass `SequenceId::zero()` to start from the beginning.
+    async fn get_effects_after(&self, community_id: CommunityId, limit: usize, after: SequenceId) -> Result<Vec<Effect>, Exn<Self::Error>>;
+    /// Returns up to `limit` records with sequence ID < `before`, descending. Pass `None` to start from the most recent.
+    async fn get_records_before(&self, community_id: CommunityId, limit: usize, before: Option<SequenceId>) -> Result<Vec<Record>, Exn<Self::Error>>;
+    /// Returns up to `limit` Grant events, sorted descending (most recent first).
+    async fn get_latest_grant_events(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Event>, Exn<Self::Error>>;
+    /// Returns up to `limit` Gift records, sorted descending (most recent first).
+    async fn get_latest_gift_records(&self, community_id: CommunityId, limit: usize) -> Result<Vec<Record>, Exn<Self::Error>>;
+    /// Returns all records with sequence ID strictly between `after` and `before`, ascending.
+    async fn get_records_between(&self, community_id: CommunityId, after: SequenceId, before: SequenceId) -> Result<Vec<Record>, Exn<Self::Error>>;
 }
 
 pub trait EventLogPersistor {
-    fn append_event(&self, community_id: CommunityId, payload: EventPayload) -> Result<Event, Error>;
-    fn append_effect(&self, event_id: SequenceId, community_id: CommunityId, mutations: Vec<StateMutation>) -> Result<Effect, Error>;
-    // append_effect stores an Effect with id == event_id; the shared-ID invariant is
-    // enforced by the implementation (panics or errors if event_id has no corresponding event).
+    type Error: DbError;
+    /// Assigns the next sequence ID and stores the event.
+    async fn append_event(&self, community_id: CommunityId, payload: EventPayload) -> Result<Event, Exn<Self::Error>>;
+    /// Stores an effect whose `id` equals `event_id`. Returns an error if an effect already exists.
+    async fn append_effect(&self, event_id: SequenceId, community_id: CommunityId, mutations: Vec<StateMutation>) -> Result<Effect, Exn<Self::Error>>;
 }
 
-pub trait EventLogRepo: EventLogProvider + EventLogPersistor {}
+pub trait EventLogRepo: EventLogProvider + EventLogPersistor<Error = <Self as EventLogProvider>::Error> {}
 ```
 
-`get_effects_after` returns up to `limit` effects for `community_id` whose sequence ID
-is strictly greater than `after`, sorted ascending. `after` acts as a keyset cursor;
-pass `SequenceId::zero()` to start from the beginning. If the returned slice length
-equals `limit`, there may be more results — callers should paginate by using the last
-returned effect's ID as the next `after`. Useful for replaying effects since a known
-snapshot.
+`get_effects_after` uses keyset pagination: if the returned slice length equals `limit`,
+there may be more results — paginate by passing the last returned effect's ID as the
+next `after`. Useful for replaying effects since a known snapshot.
 
 ### Store wrappers (`community_store.rs`, `event_log_store.rs`)
 
@@ -759,10 +763,28 @@ pub struct EventLogStore<ELR: EventLogRepo> { ... }
 Thin wrapper that exposes all `EventLogProvider` and `EventLogPersistor` methods
 without requiring callers to depend on the port traits directly.
 
-### Error (`error.rs`)
+### Error handling (`error.rs`)
 
-`Error` is a domain-level error type that wraps `std::io::Error` and
-`std::sync::PoisonError`. Used as the `Err` variant of all storage port results.
+The domain defines a `DbError` marker trait:
+
+```rust
+pub trait DbError: Anomaly + Send + Sync + 'static {}
+```
+
+Each db crate defines its own `Error` enum (using `thiserror` and `anomalies`) and
+implements `DbError` on it. Storage port traits carry an associated `type Error: DbError`
+so that callers can inspect the [`anomalies`](https://crates.io/crates/anomalies)
+`category` and `status` to make retry decisions without parsing message strings.
+
+The domain's own `Error` enum is used by service-layer code (e.g. `LuckAdjuster`).
+It wraps db errors via `StorageLayerError::raise`, which preserves the original category
+and status from the db error through the `Exn` causality chain.
+
+All failable operations return `Result<T, Exn<E>>` where
+[`Exn`](https://crates.io/crates/exn) wraps the error with call-site location and a
+causal chain. Crossing error-type boundaries (e.g. from a db `Error` to the domain
+`Error`) requires an explicit conversion, which forces a conscious framing decision at
+each boundary.
 
 ---
 
@@ -788,6 +810,59 @@ For both types:
 - Both implement `EventLogProvider`/`EventLogPersistor` for both owned and `&`-reference
   types so they can be shared between a `CommunityStore` and an `EventLogStore` without
   cloning.
+
+---
+
+## DynamoDB Database (`dynamo_db` crate)
+
+`DynamoDbEventLogRepo` implements `EventLogRepo` and `DynamoDbCommunityRepo` implements
+`CommunityRepo`, both backed by a single DynamoDB table using a composite key design.
+
+### Table schema
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `pk` | Binary (16 bytes) | Community UUID in raw bytes |
+| `sk` | String | Sort key — encodes entity type and position |
+
+All item types share the same table. The sort key prefix determines the entity type:
+
+| Sort key format | Entity |
+|-----------------|--------|
+| `COUNTER` | Per-community sequence counter |
+| `EVENT#{seq:020}` | Event item (seq zero-padded to 20 digits) |
+| `EFFECT#{seq:020}` | Effect item |
+| `COMMUNITY#{seq:020}` | Community snapshot at the given version |
+
+UUID fields (`pk` and all member/sender/recipient IDs inside items) are stored as 16-byte
+binary blobs (`AttributeValue::B`) rather than 36-character hyphenated strings, reducing
+item size and per-request cost. Binary values appear as Base64 in the AWS console and CLI.
+
+### Sequence counter
+
+Each community has its own counter item at `pk = community_id, sk = "COUNTER"`. The
+counter is incremented atomically via `UpdateItem ADD`, which guarantees each
+`append_event` call receives a distinct value. Sequence IDs are community-scoped; the
+same numeric ID may appear in different communities.
+
+Gaps in the sequence are acceptable: if a process crashes after incrementing the counter
+but before writing the event item, the counter advances but no item is written.
+
+### Consistency model
+
+`append_event` and `append_effect` use `PutItem` with `condition_expression =
+"attribute_not_exists(sk)"`. DynamoDB conditional writes are atomic — the condition check
+and the write happen as a single operation on the most recent version of the item. Two
+concurrent callers at the same sort key will get exactly one success and one
+`ConditionalCheckFailedException` (mapped to `Error::AlreadyExists`). Because the counter
+guarantees distinct sequence IDs under normal operation, `AlreadyExists` from
+`append_event` is not expected in practice.
+
+### No GSI required
+
+All queries use the main table's partition key (`pk = community_id`). There is no Global
+Secondary Index. `get_record` and `get_effect_for_event` take `community_id` as a
+parameter for this reason.
 
 ---
 
