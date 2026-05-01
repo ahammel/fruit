@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::{AttributeValue, KeysAndAttributes, ReturnValue};
+use aws_sdk_dynamodb::{
+    primitives::Blob,
+    types::{AttributeValue, KeysAndAttributes, ReturnValue},
+};
 use exn::Exn;
 use fruit_domain::{
     community::CommunityId,
@@ -48,7 +51,10 @@ impl DynamoDbEventLogRepo {
             .client
             .update_item()
             .table_name(&self.table_name)
-            .key("pk", AttributeValue::S(community_id.as_uuid().to_string()))
+            .key(
+                "pk",
+                AttributeValue::B(Blob::new(community_id.as_uuid().as_bytes().to_vec())),
+            )
             .key("sk", AttributeValue::S("COUNTER".to_string()))
             .update_expression("ADD #n :inc")
             .expression_attribute_names("#n", "n")
@@ -79,7 +85,7 @@ impl DynamoDbEventLogRepo {
         community_id: CommunityId,
         seq_ids: &[SequenceId],
     ) -> Result<HashMap<SequenceId, Effect>, Exn<Error>> {
-        let pk_val = community_id.as_uuid().to_string();
+        let pk_val = community_id.as_uuid().as_bytes().to_vec();
         let mut result: HashMap<SequenceId, Effect> = HashMap::new();
 
         for chunk in seq_ids.chunks(100) {
@@ -87,7 +93,10 @@ impl DynamoDbEventLogRepo {
                 .iter()
                 .map(|&seq| {
                     HashMap::from([
-                        ("pk".to_string(), AttributeValue::S(pk_val.clone())),
+                        (
+                            "pk".to_string(),
+                            AttributeValue::B(Blob::new(pk_val.clone())),
+                        ),
                         ("sk".to_string(), AttributeValue::S(sk_effect(seq))),
                     ])
                 })
@@ -127,7 +136,7 @@ impl DynamoDbEventLogRepo {
         event_type: &str,
         limit: usize,
     ) -> Result<Vec<HashMap<String, AttributeValue>>, Exn<Error>> {
-        let pk = community_id.as_uuid().to_string();
+        let pk = community_id.as_uuid().as_bytes().to_vec();
         let (lower, upper) = sk_event_range(SequenceId::new(0), None);
         let mut results = Vec::new();
         let mut last_key: Option<HashMap<String, AttributeValue>> = None;
@@ -139,7 +148,7 @@ impl DynamoDbEventLogRepo {
                 .table_name(&self.table_name)
                 .key_condition_expression("pk = :pk AND sk BETWEEN :lower AND :upper")
                 .filter_expression("event_type = :et")
-                .expression_attribute_values(":pk", AttributeValue::S(pk.clone()))
+                .expression_attribute_values(":pk", AttributeValue::B(Blob::new(pk.clone())))
                 .expression_attribute_values(":lower", AttributeValue::S(lower.clone()))
                 .expression_attribute_values(":upper", AttributeValue::S(upper.clone()))
                 .expression_attribute_values(":et", AttributeValue::S(event_type.to_string()))
@@ -181,17 +190,17 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         community_id: CommunityId,
         id: SequenceId,
     ) -> Result<Option<Record>, Exn<Error>> {
-        let pk = community_id.as_uuid().to_string();
+        let pk = community_id.as_uuid().as_bytes().to_vec();
         let event_sk = sk_event(id);
         let effect_sk = sk_effect(id);
 
         let keys: Vec<HashMap<String, AttributeValue>> = vec![
             HashMap::from([
-                ("pk".to_string(), AttributeValue::S(pk.clone())),
+                ("pk".to_string(), AttributeValue::B(Blob::new(pk.clone()))),
                 ("sk".to_string(), AttributeValue::S(event_sk)),
             ]),
             HashMap::from([
-                ("pk".to_string(), AttributeValue::S(pk.clone())),
+                ("pk".to_string(), AttributeValue::B(Blob::new(pk.clone()))),
                 ("sk".to_string(), AttributeValue::S(effect_sk)),
             ]),
         ];
@@ -241,7 +250,10 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .client
             .get_item()
             .table_name(&self.table_name)
-            .key("pk", AttributeValue::S(community_id.as_uuid().to_string()))
+            .key(
+                "pk",
+                AttributeValue::B(Blob::new(community_id.as_uuid().as_bytes().to_vec())),
+            )
             .key("sk", AttributeValue::S(sk_effect(event_id)))
             .send()
             .await
@@ -264,7 +276,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .key_condition_expression("pk = :pk AND sk BETWEEN :lower AND :upper")
             .expression_attribute_values(
                 ":pk",
-                AttributeValue::S(community_id.as_uuid().to_string()),
+                AttributeValue::B(Blob::new(community_id.as_uuid().as_bytes().to_vec())),
             )
             .expression_attribute_values(":lower", AttributeValue::S(lower))
             .expression_attribute_values(":upper", AttributeValue::S(upper))
@@ -295,7 +307,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
             .key_condition_expression("pk = :pk AND sk BETWEEN :lower AND :upper")
             .expression_attribute_values(
                 ":pk",
-                AttributeValue::S(community_id.as_uuid().to_string()),
+                AttributeValue::B(Blob::new(community_id.as_uuid().as_bytes().to_vec())),
             )
             .expression_attribute_values(":lower", AttributeValue::S(lower))
             .expression_attribute_values(":upper", AttributeValue::S(upper))
@@ -362,7 +374,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         before: SequenceId,
     ) -> Result<Vec<Record>, Exn<Error>> {
         let (lower, upper) = sk_event_range(after, Some(before));
-        let pk = community_id.as_uuid().to_string();
+        let pk = community_id.as_uuid().as_bytes().to_vec();
         let mut event_items = Vec::new();
         let mut last_key: Option<HashMap<String, AttributeValue>> = None;
 
@@ -372,7 +384,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
                 .query()
                 .table_name(&self.table_name)
                 .key_condition_expression("pk = :pk AND sk BETWEEN :lower AND :upper")
-                .expression_attribute_values(":pk", AttributeValue::S(pk.clone()))
+                .expression_attribute_values(":pk", AttributeValue::B(Blob::new(pk.clone())))
                 .expression_attribute_values(":lower", AttributeValue::S(lower.clone()))
                 .expression_attribute_values(":upper", AttributeValue::S(upper.clone()))
                 .scan_index_forward(true);

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aws_sdk_dynamodb::types::AttributeValue;
+use aws_sdk_dynamodb::{primitives::Blob, types::AttributeValue};
 use exn::Exn;
 use fruit_domain::{
     community::{Community, CommunityId},
@@ -16,7 +16,7 @@ use crate::{
 /// DynamoDB implementation of [`CommunityRepo`].
 ///
 /// Stores community snapshots in the same table as events and effects.
-/// `pk = community_id (UUID string)`, `sk = "COMMUNITY#{version_padded_20}"`.
+/// `pk = community_id (UUID bytes, 16-byte binary)`, `sk = "COMMUNITY#{version_padded_20}"`.
 ///
 /// The constructor accepts an already-built [`aws_sdk_dynamodb::Client`].
 pub struct DynamoDbCommunityRepo {
@@ -45,14 +45,14 @@ impl CommunityProvider for DynamoDbCommunityRepo {
         id: CommunityId,
         version: SequenceId,
     ) -> Result<Option<Community>, Exn<Self::Error>> {
-        let pk = id.as_uuid().to_string();
+        let pk = Blob::new(id.as_uuid().as_bytes().to_vec());
         let sk = sk_community(version);
 
         let resp = self
             .client
             .get_item()
             .table_name(&self.table_name)
-            .key("pk", AttributeValue::S(pk))
+            .key("pk", AttributeValue::B(pk))
             .key("sk", AttributeValue::S(sk))
             .send()
             .await
@@ -62,7 +62,7 @@ impl CommunityProvider for DynamoDbCommunityRepo {
     }
 
     async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Self::Error>> {
-        let pk = id.as_uuid().to_string();
+        let pk = Blob::new(id.as_uuid().as_bytes().to_vec());
         let (sk_lo, sk_hi) = sk_community_range();
 
         let resp = self
@@ -70,7 +70,7 @@ impl CommunityProvider for DynamoDbCommunityRepo {
             .query()
             .table_name(&self.table_name)
             .key_condition_expression("pk = :pk AND sk BETWEEN :lo AND :hi")
-            .expression_attribute_values(":pk", AttributeValue::S(pk))
+            .expression_attribute_values(":pk", AttributeValue::B(pk))
             .expression_attribute_values(":lo", AttributeValue::S(sk_lo))
             .expression_attribute_values(":hi", AttributeValue::S(sk_hi))
             .scan_index_forward(false)

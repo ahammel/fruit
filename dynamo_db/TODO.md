@@ -5,7 +5,7 @@
 
 ## Performance
 
-- [ ] **Store UUID fields as binary.** `pk` and UUID attributes are stored as 36-character hyphenated strings (`AttributeValue::S`). Switching to `AttributeValue::B` (16-byte raw UUID) would reduce item size and read/write costs. Trade-off: binary values appear as Base64 in the console and CLI, making manual inspection harder.
+- [x] **Store UUID fields as binary.** `pk` and UUID attributes are stored as 36-character hyphenated strings (`AttributeValue::S`). Switching to `AttributeValue::B` (16-byte raw UUID) would reduce item size and read/write costs. Trade-off: binary values appear as Base64 in the console and CLI, making manual inspection harder.
 
 ## Correctness
 

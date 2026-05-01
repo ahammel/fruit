@@ -10,6 +10,7 @@ use fruit_domain::{
 use newtype_ids::IntegerIdentifier as _;
 use newtype_ids_uuid::UuidIdentifier as _;
 use serde::{Deserialize, Serialize};
+use serde_bytes::ByteBuf;
 use uuid::Uuid;
 
 use super::event::MemberDto;
@@ -20,7 +21,7 @@ use crate::error::{raise_codec_err, Error};
 /// The DynamoDB item structure for a community snapshot.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct CommunityItem {
-    pub pk: String,
+    pub pk: ByteBuf,
     pub sk: String,
     pub luck: u8,
     pub version: u64,
@@ -44,7 +45,7 @@ pub(crate) fn encode_community(
     community: &Community,
 ) -> Result<HashMap<String, AttributeValue>, Exn<Error>> {
     let item = CommunityItem {
-        pk: community.id.as_uuid().to_string(),
+        pk: ByteBuf::from(community.id.as_uuid().as_bytes().to_vec()),
         sk: sk_community(community.version),
         luck: community.luck_raw(),
         version: community.version.as_u64(),
@@ -65,9 +66,12 @@ pub(crate) fn decode_community(
     let dto: CommunityItem = serde_dynamo::aws_sdk_dynamodb_1::from_item(item)
         .map_err(|e| raise_codec_err("failed to decode community", e))?;
 
-    let community_id = Uuid::parse_str(&dto.pk)
-        .map(CommunityId::from)
-        .map_err(|e| raise_codec_err("invalid community pk", e))?;
+    let pk_arr: [u8; 16] = dto
+        .pk
+        .as_ref()
+        .try_into()
+        .map_err(|e| raise_codec_err("invalid community pk: expected 16 bytes", e))?;
+    let community_id = CommunityId::from(Uuid::from_bytes(pk_arr));
 
     let members: HashMap<_, Member> = dto
         .members

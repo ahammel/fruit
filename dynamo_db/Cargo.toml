@@ -14,6 +14,7 @@ fruit-domain = { path = "../domain" }
 newtype-ids = "0.1"
 newtype-ids-uuid = "0.1"
 serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
 serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread"] }
