@@ -1,7 +1,7 @@
 # DynamoDB Implementation — Review Notes
 
 - [ ] Delete this file before merging.
-- [ ] **Add a standing pre-merge checklist to `CLAUDE.md`.** Extract the generally-applicable items from this file (docs pass, binary UUIDs, test coverage, etc.) into a reusable checklist in `~/repos/claude-md/CLAUDE.md` under a "Before merging a feature branch" heading so future branches start with the same bar.
+- [x] **Add a standing pre-merge checklist to `CLAUDE.md`.** Extract the generally-applicable items from this file (docs pass, binary UUIDs, test coverage, etc.) into a reusable checklist in `~/repos/claude-md/CLAUDE.md` under a "Before merging a feature branch" heading so future branches start with the same bar.
 
 ## Performance
 
