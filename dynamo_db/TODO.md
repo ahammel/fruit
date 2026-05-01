@@ -29,7 +29,7 @@
 
 ## Reliability
 
-- [ ] **Retry/back-off on concurrent event append.** If two writers race to append at the same sequence ID, one will get `AlreadyExists`. Decide whether the repo should transparently retry with a fresh sequence ID, or surface the conflict to the caller and let the service layer decide.
+- [x] **Retry/back-off on concurrent event append.** If two writers race to append at the same sequence ID, one will get `AlreadyExists`. Decide whether the repo should transparently retry with a fresh sequence ID, or surface the conflict to the caller and let the service layer decide. **Decision: not needed.** `UpdateItem ADD` is atomic — each concurrent caller receives a distinct counter value, so `AlreadyExists` from `append_event` is unreachable in normal operation. Surfacing it to the caller is the right behaviour if it somehow occurs.
 
 ## Documentation
 
