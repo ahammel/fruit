@@ -295,6 +295,33 @@ async fn get_record_not_found_returns_none() {
     assert_eq!(result, None);
 }
 
+#[tokio::test]
+async fn get_record_unknown_sk_prefix_is_ignored() {
+    let event = make_event(seq(1), EventPayload::Grant { count: 2 });
+    let event_item = encode_event(&event).unwrap();
+
+    let mut unknown_item = HashMap::new();
+    unknown_item.insert(
+        "sk".to_string(),
+        AttributeValue::S("COUNT#00000000000000001".to_string()),
+    );
+
+    let rule = mock!(aws_sdk_dynamodb::Client::batch_get_item).then_output(move || {
+        batch_get_output_for_table("test-table", vec![event_item.clone(), unknown_item.clone()])
+    });
+    let client = mock_client!(aws_sdk_dynamodb, [&rule]);
+    let repo = DynamoDbEventLogRepo::new(client, "test-table");
+
+    let result = repo.get_record(community_id(), seq(1)).await.unwrap();
+    assert_eq!(
+        result,
+        Some(Record {
+            event,
+            effect: None
+        })
+    );
+}
+
 // ── get_effect_for_event ──────────────────────────────────────────────────────
 
 #[tokio::test]
@@ -573,6 +600,48 @@ async fn get_latest_grant_events_paginates_until_limit_met() {
                 .build()
         })
         .output(move || QueryOutput::builder().items(i2.clone()).build())
+        .build();
+    let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, [&query_rule]);
+    let repo = DynamoDbEventLogRepo::new(client, "test-table");
+
+    let events = repo
+        .get_latest_grant_events(community_id(), 2)
+        .await
+        .unwrap();
+    assert_eq!(events, vec![e1, e2]);
+}
+
+// Page 2 contains more items than the limit allows — verifies `remaining` is
+// computed as `limit - results.len()`, not `limit + results.len()`.
+#[tokio::test]
+async fn get_latest_grant_events_pagination_does_not_overshoot_limit() {
+    let e1 = make_event(seq(1), EventPayload::Grant { count: 1 });
+    let e2 = make_event(seq(2), EventPayload::Grant { count: 2 });
+    let e3 = make_event(seq(3), EventPayload::Grant { count: 3 });
+    let item1 = encode_event(&e1).unwrap();
+    let item2 = encode_event(&e2).unwrap();
+    let item3 = encode_event(&e3).unwrap();
+
+    let pagination_key: HashMap<String, AttributeValue> =
+        [("pk".to_string(), AttributeValue::S("page2".to_string()))].into();
+    let pk = pagination_key.clone();
+    let i1 = item1.clone();
+    let i2 = item2.clone();
+    let i3 = item3.clone();
+    // Page 1 yields 1 item with a continuation token; page 2 yields 2 items.
+    let query_rule = mock!(aws_sdk_dynamodb::Client::query)
+        .sequence()
+        .output(move || {
+            QueryOutput::builder()
+                .items(i1.clone())
+                .set_last_evaluated_key(Some(pk.clone()))
+                .build()
+        })
+        .output(move || {
+            QueryOutput::builder()
+                .set_items(Some(vec![i2.clone(), i3.clone()]))
+                .build()
+        })
         .build();
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, [&query_rule]);
     let repo = DynamoDbEventLogRepo::new(client, "test-table");

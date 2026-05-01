@@ -14,6 +14,20 @@ use super::*;
 
 type TestSdkError = SdkError<PutItemError>;
 
+/// An error whose `source()` always returns `Some`, for testing source-delegation impls.
+#[derive(Debug)]
+struct Chained(std::io::Error);
+impl std::fmt::Display for Chained {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl StdError for Chained {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        Some(&self.0)
+    }
+}
+
 // ── From<SdkError> – TimeoutError arm ────────────────────────────────────────
 
 #[test]
@@ -122,6 +136,26 @@ fn service_error_unknown_code_maps_to_fault_permanent() {
     assert_eq!(anomaly.status(), Status::Permanent);
 }
 
+// ── ConstructionFailure inner type ───────────────────────────────────────────
+
+#[test]
+fn construction_failure_display_contains_inner_message() {
+    let cf = ConstructionFailure(Box::new(std::io::Error::other("cf msg")));
+    assert!(cf.to_string().contains("cf msg"));
+}
+
+#[test]
+fn construction_failure_source_is_none_for_sourceless_inner() {
+    let cf = ConstructionFailure(Box::new(std::io::Error::other("x")));
+    assert!(StdError::source(&cf).is_none());
+}
+
+#[test]
+fn construction_failure_source_is_some_when_inner_has_source() {
+    let cf = ConstructionFailure(Box::new(Chained(std::io::Error::other("cause"))));
+    assert!(StdError::source(&cf).is_some());
+}
+
 // ── TimeoutError inner type ───────────────────────────────────────────────────
 
 #[test]
@@ -134,6 +168,12 @@ fn timeout_error_display_contains_inner_message() {
 fn timeout_error_source_is_none() {
     let te = TimeoutError(Box::new(std::io::Error::other("x")));
     assert!(StdError::source(&te).is_none());
+}
+
+#[test]
+fn timeout_error_source_is_some_when_inner_has_source() {
+    let te = TimeoutError(Box::new(Chained(std::io::Error::other("cause"))));
+    assert!(StdError::source(&te).is_some());
 }
 
 // ── DispatchFailure inner type ────────────────────────────────────────────────
@@ -156,6 +196,16 @@ fn dispatch_failure_direct_source_is_none() {
         err: Box::new(std::io::Error::other("x")),
     };
     assert!(StdError::source(&df).is_none());
+}
+
+#[test]
+fn dispatch_failure_source_is_some_when_inner_has_source() {
+    let df = DispatchFailure {
+        category: Fault,
+        status: Status::Permanent,
+        err: Box::new(Chained(std::io::Error::other("cause"))),
+    };
+    assert!(StdError::source(&df).is_some());
 }
 
 #[test]
@@ -190,6 +240,12 @@ fn response_error_display_contains_inner_message() {
 fn response_error_source_is_none() {
     let re = ResponseError(Box::new(std::io::Error::other("x")));
     assert!(StdError::source(&re).is_none());
+}
+
+#[test]
+fn response_error_source_is_some_when_inner_has_source() {
+    let re = ResponseError(Box::new(Chained(std::io::Error::other("cause"))));
+    assert!(StdError::source(&re).is_some());
 }
 
 // ── ServiceError inner type ───────────────────────────────────────────────────
