@@ -37,7 +37,7 @@
 
 ## Testing
 
-- [ ] **100% line coverage.** Every line in the crate must be exercised by unit tests using a mocked DynamoDB client.
+- [x] **100% line coverage.** Every line in the crate must be exercised by unit tests using a mocked DynamoDB client.
 
 - [ ] **100% mutation coverage.** Run `cargo-mutants` (or equivalent) against the crate and drive the mutation score to 100% using the same mock-based unit test suite. The Localstack integration tests cover happy-path wiring, not exhaustive branch coverage.
 

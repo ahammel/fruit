@@ -38,7 +38,7 @@ br build-release:
 
 tc test-coverage:
 	cargo tarpaulin \
-		--packages fruit-domain fruit-in-memory-db \
+		--packages fruit-domain fruit-in-memory-db fruit-dynamo-db \
 		--exclude-files "*_tests.rs" \
 		--fail-under 100
 

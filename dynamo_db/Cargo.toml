@@ -19,3 +19,9 @@ serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 uuid = { version = "=1.11.0" }
+
+[dev-dependencies]
+aws-sdk-dynamodb = { version = "1", features = ["test-util"] }
+aws-smithy-mocks = "0.2"
+aws-smithy-types = "1"
+tokio = { version = "1", features = ["macros"] }

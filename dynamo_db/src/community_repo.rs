@@ -159,3 +159,7 @@ impl CommunityPersistor for &DynamoDbCommunityRepo {
 
 impl CommunityRepo for DynamoDbCommunityRepo {}
 impl CommunityRepo for &DynamoDbCommunityRepo {}
+
+#[cfg(test)]
+#[path = "community_repo_tests.rs"]
+mod tests;

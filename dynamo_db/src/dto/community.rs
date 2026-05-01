@@ -88,3 +88,7 @@ pub(crate) fn decode_community(
 
     Ok(community)
 }
+
+#[cfg(test)]
+#[path = "community_tests.rs"]
+mod tests;

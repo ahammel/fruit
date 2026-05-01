@@ -504,3 +504,7 @@ pub(crate) fn sk_effect_range_after(after: SequenceId) -> (String, String) {
     let upper = format!("EFFECT#{:020}", u64::MAX);
     (lower, upper)
 }
+
+#[cfg(test)]
+#[path = "event_tests.rs"]
+mod tests;

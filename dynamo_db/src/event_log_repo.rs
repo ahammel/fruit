@@ -19,7 +19,7 @@ use crate::{
         build_records, decode_effect, decode_event, encode_effect, encode_event, sk_effect,
         sk_effect_range_after, sk_event, sk_event_range, EVENT_TYPE_GIFT, EVENT_TYPE_GRANT,
     },
-    error::{raise_build_err, raise_conflict_err, raise_sdk_err, Entity, Error},
+    error::{raise_conflict_err, raise_sdk_err, Entity, Error},
 };
 
 /// DynamoDB implementation of [`EventLogRepo`].
@@ -105,7 +105,7 @@ impl DynamoDbEventLogRepo {
             let kaa = KeysAndAttributes::builder()
                 .set_keys(Some(keys))
                 .build()
-                .map_err(|e| raise_build_err("failed to build batch-get keys", e))?;
+                .expect("keys always set");
 
             let resp = self
                 .client
@@ -207,7 +207,7 @@ impl EventLogProvider for DynamoDbEventLogRepo {
         let kaa = KeysAndAttributes::builder()
             .set_keys(Some(keys))
             .build()
-            .map_err(|e| raise_build_err("failed to build batch-get keys", e))?;
+            .expect("keys always set");
 
         let resp = self
             .client
@@ -607,3 +607,7 @@ impl EventLogPersistor for &DynamoDbEventLogRepo {
 }
 
 impl EventLogRepo for &DynamoDbEventLogRepo {}
+
+#[cfg(test)]
+#[path = "event_log_repo_tests.rs"]
+mod tests;

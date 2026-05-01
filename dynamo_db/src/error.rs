@@ -12,7 +12,7 @@ use newtype_ids::IntegerIdentifier;
 use newtype_ids_uuid::UuidIdentifier;
 use thiserror::Error;
 
-use crate::dyanmo_sdk_anomaly::{ConstructionFailure, SdkAnomaly};
+use crate::dyanmo_sdk_anomaly::SdkAnomaly;
 
 /// Errors that can occur when accessing DynamoDB domain storage.
 #[derive(Debug, Error, Anomaly)]
@@ -114,20 +114,6 @@ where
     Error::Sdk(sdk_err).raise()
 }
 
-/// Wraps a request-builder error as a permanent construction fault.
-pub(crate) fn raise_build_err(
-    context: impl Into<String>,
-    e: impl std::error::Error + Send + Sync + 'static,
-) -> Exn<Error> {
-    let sdk_err = DynamoSdkError {
-        context: context.into(),
-        cause: SdkAnomaly::ConstructionFailure(ConstructionFailure::new(Box::new(e))),
-        category: Fault,
-        status: Status::Permanent,
-    };
-    Error::Sdk(sdk_err).raise()
-}
-
 /// Wraps a conditional-check SDK error as an [`Error::AlreadyExists`], with the original
 /// SDK error in the causality chain.
 pub(crate) fn raise_conflict_err<E>(
@@ -156,3 +142,7 @@ where
         message: context.into(),
     })
 }
+
+#[cfg(test)]
+#[path = "error_tests.rs"]
+mod tests;

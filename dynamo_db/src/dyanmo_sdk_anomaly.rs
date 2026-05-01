@@ -82,12 +82,6 @@ where
 #[category(incorrect)]
 pub struct ConstructionFailure(Box<dyn std::error::Error + Send + Sync + 'static>);
 
-impl ConstructionFailure {
-    pub(crate) fn new(e: Box<dyn std::error::Error + Send + Sync + 'static>) -> Self {
-        Self(e)
-    }
-}
-
 impl fmt::Display for ConstructionFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -251,3 +245,7 @@ impl HasStatus for ServiceError {
     }
 }
 impl Anomaly for ServiceError {}
+
+#[cfg(test)]
+#[path = "dyanmo_sdk_anomaly_tests.rs"]
+mod tests;
