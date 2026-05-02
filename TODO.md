@@ -17,8 +17,8 @@
 Add to the workspace alongside `command_line_service`. This is the service layer:
 wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack responses.
 
-- [ ] Add `slack_service/` to `[workspace.members]` in root `Cargo.toml`
-- [ ] Add dependencies:
+- [x] Add `slack_service/` to `[workspace.members]` in root `Cargo.toml`
+- [x] Add dependencies:
   - `lambda_http` — AWS Lambda + API Gateway adapter
   - `tokio` with `macros` + `rt-multi-thread`
   - `aws-config` + `aws-sdk-dynamodb` (for wiring `DynamoDbEventLogRepo` /
@@ -27,10 +27,10 @@ wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack respon
   - `serde` + `serde_json` — Slack payload parsing and Block Kit responses
   - `hex` — decode the `X-Slack-Signature` header
   - `fruit-domain` + `fruit-dynamo-db`
-- [ ] Add `[[bin]] name = "bootstrap"` target (Lambda requires the binary to be named
+- [x] Add `[[bin]] name = "bootstrap"` target (Lambda requires the binary to be named
       `bootstrap` when using the `provided.al2023` runtime)
-- [ ] Update `README.md`: add `slack_service` to the crate list
-- [ ] Update `SPEC.md`: cover handler architecture, identity mapping, and DynamoDB
+- [x] Update `README.md`: add `slack_service` to the crate list
+- [x] Update `SPEC.md`: cover handler architecture, identity mapping, and DynamoDB
       table sharing
 
 ---
