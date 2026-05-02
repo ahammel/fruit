@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use exn::Exn;
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
 
 /// Read port for the event and effect log.
 #[async_trait]
+#[auto_impl(&)]
 pub trait EventLogProvider {
     /// The error type returned by storage operations.
     type Error: DbError;
@@ -78,6 +80,7 @@ pub trait EventLogProvider {
 
 /// Write port for the event and effect log.
 #[async_trait]
+#[auto_impl(&)]
 pub trait EventLogPersistor {
     /// The error type returned by storage operations.
     type Error: DbError;
@@ -102,6 +105,7 @@ pub trait EventLogPersistor {
 }
 
 /// Combined read/write port for the event and effect log.
+#[auto_impl(&)]
 pub trait EventLogRepo:
     EventLogProvider + EventLogPersistor<Error = <Self as EventLogProvider>::Error>
 {

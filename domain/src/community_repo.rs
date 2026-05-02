@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use auto_impl::auto_impl;
 use exn::Exn;
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
 
 /// Port for loading a [`Community`] from storage.
 #[async_trait]
+#[auto_impl(&)]
 pub trait CommunityProvider {
     /// The error type returned by storage operations.
     type Error: DbError;
@@ -31,6 +33,7 @@ pub trait CommunityProvider {
 /// permitted; implementations are expected to manage shared state internally
 /// (e.g. via a connection pool or mutex).
 #[async_trait]
+#[auto_impl(&)]
 pub trait CommunityPersistor {
     /// The error type returned by storage operations.
     type Error: DbError;
@@ -43,6 +46,7 @@ pub trait CommunityPersistor {
 }
 
 /// Combined read/write port. Implement this when CQRS separation is not needed.
+#[auto_impl(&)]
 pub trait CommunityRepo:
     CommunityProvider + CommunityPersistor<Error = <Self as CommunityProvider>::Error>
 {

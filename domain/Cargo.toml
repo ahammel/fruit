@@ -17,3 +17,4 @@ newtype-ids = "0.1"
 newtype-ids-uuid = "0.1"
 rand = "0.8"
 uuid = { version = "=1.11.0", features = ["v4"] }
+auto_impl = "1.3.0"

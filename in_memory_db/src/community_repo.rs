@@ -91,34 +91,6 @@ impl CommunityPersistor for InMemoryCommunityRepo {
 
 impl CommunityRepo for InMemoryCommunityRepo {}
 
-#[async_trait]
-impl CommunityProvider for &InMemoryCommunityRepo {
-    type Error = Error;
-
-    async fn get(
-        &self,
-        id: CommunityId,
-        version: SequenceId,
-    ) -> Result<Option<Community>, Exn<Error>> {
-        (*self).get(id, version).await
-    }
-
-    async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
-        (*self).get_latest(id).await
-    }
-}
-
-#[async_trait]
-impl CommunityPersistor for &InMemoryCommunityRepo {
-    type Error = Error;
-
-    async fn put(&self, community: Community) -> Result<Community, Exn<Error>> {
-        (*self).put(community).await
-    }
-}
-
-impl CommunityRepo for &InMemoryCommunityRepo {}
-
 #[cfg(test)]
 #[path = "community_repo_tests.rs"]
 mod tests;
