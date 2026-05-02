@@ -1,5 +1,6 @@
 mod repl;
 
-fn main() {
-    repl::run();
+#[tokio::main]
+async fn main() {
+    repl::run().await;
 }

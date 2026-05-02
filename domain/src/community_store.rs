@@ -32,20 +32,22 @@ where
     }
 
     /// Creates and persists a new community at version zero.
-    pub fn init(&self) -> Result<Community, Exn<Error>> {
+    pub async fn init(&self) -> Result<Community, Exn<Error>> {
         self.community_repo
             .put(Community::new())
+            .await
             .map_err(|e| StorageLayerError::raise("failed to initialize community", e))
     }
 
     /// Returns the community snapshot at the given `version`, or `None` if not found.
-    pub fn get(
+    pub async fn get(
         &self,
         id: CommunityId,
         version: SequenceId,
     ) -> Result<Option<Community>, Exn<Error>> {
         self.community_repo
             .get(id, version)
+            .await
             .map_err(|e| StorageLayerError::raise("failed to retrieve community snapshot", e))
     }
 
@@ -54,8 +56,8 @@ where
     ///
     /// Any effects recorded after the latest stored snapshot are applied in sequence.
     /// If new effects were applied, the resulting snapshot is saved before being returned.
-    pub fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
-        let mut community = match self.community_repo.get_latest(id).map_err(|e| {
+    pub async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+        let mut community = match self.community_repo.get_latest(id).await.map_err(|e| {
             StorageLayerError::raise("failed to retrieve latest version of community", e)
         })? {
             Some(c) => c,
@@ -70,6 +72,7 @@ where
             let batch = self
                 .event_log_provider
                 .get_effects_after(id, EFFECTS_PAGE_SIZE, prev_version)
+                .await
                 .map_err(|e| {
                     StorageLayerError::raise(
                         format!("failed to retrieve effects for community at batch number {i}"),
@@ -88,6 +91,7 @@ where
         let saved = self
             .community_repo
             .put(community)
+            .await
             .map_err(|e| StorageLayerError::raise("failed to persist updated community", e))?;
         Ok(Some(saved))
     }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["domain", "in_memory_db", "command_line_service"]
+members = ["domain", "in_memory_db", "dynamo_db", "command_line_service"]
 resolver = "2"
 
 [workspace.metadata.tools]

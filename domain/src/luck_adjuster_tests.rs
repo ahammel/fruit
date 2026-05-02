@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use exn::Exn;
 
 use super::*;
@@ -53,17 +54,26 @@ impl MockEventLog {
     }
 }
 
+#[async_trait]
 impl EventLogProvider for MockEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
 
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: crate::community::CommunityId,
         _: usize,
@@ -72,7 +82,7 @@ impl EventLogProvider for MockEventLog {
         Ok(vec![])
     }
 
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: crate::community::CommunityId,
         _: usize,
@@ -81,7 +91,7 @@ impl EventLogProvider for MockEventLog {
         Ok(vec![])
     }
 
-    fn get_latest_grant_events(
+    async fn get_latest_grant_events(
         &self,
         _: crate::community::CommunityId,
         _: usize,
@@ -89,7 +99,7 @@ impl EventLogProvider for MockEventLog {
         Ok(self.grant_events.clone())
     }
 
-    fn get_latest_gift_records(
+    async fn get_latest_gift_records(
         &self,
         _: crate::community::CommunityId,
         limit: usize,
@@ -98,7 +108,7 @@ impl EventLogProvider for MockEventLog {
         Ok(self.gift_records.iter().take(limit).cloned().collect())
     }
 
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: crate::community::CommunityId,
         _: SequenceId,
@@ -124,20 +134,22 @@ impl MockCommunityProvider {
     }
 }
 
+#[async_trait]
 impl CommunityProvider for MockCommunityProvider {
     type Error = Error;
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self.community.clone())
     }
 
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(self.community.clone())
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for MockCommunityProvider {
     type Error = Error;
-    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -215,16 +227,16 @@ fn gift_record_noop(
 
 // ── tests ──────────────────────────────────────────────────────────────────
 
-#[test]
-fn no_prior_grants_no_gifts_returns_empty() {
+#[tokio::test]
+async fn no_prior_grants_no_gifts_returns_empty() {
     let community = Community::new();
     let adjuster = LuckAdjuster::new(MockEventLog::new(), MockCommunityProvider::none());
-    let result = adjuster.compute(&community, seq(10)).unwrap();
+    let result = adjuster.compute(&community, seq(10)).await.unwrap();
     assert_eq!(result, vec![]);
 }
 
-#[test]
-fn gift_between_grants_produces_bonus() {
+#[tokio::test]
+async fn gift_between_grants_produces_bonus() {
     let mut community = Community::new();
     let sender = Member::new("Alice");
     // recipient holds enough fruit to avoid ostentation penalty
@@ -245,7 +257,7 @@ fn gift_between_grants_produces_bonus() {
         MockCommunityProvider::with(community),
     );
 
-    let result = adjuster.compute(&Community::new(), seq(10)).unwrap();
+    let result = adjuster.compute(&Community::new(), seq(10)).await.unwrap();
 
     // GRAPES value=1.0, delta = round(1.0 * 10.0) = 10
     assert_eq!(
@@ -257,21 +269,21 @@ fn gift_between_grants_produces_bonus() {
     );
 }
 
-#[test]
-fn recent_gift_records_capped_at_100() {
+#[tokio::test]
+async fn recent_gift_records_capped_at_100() {
     let community = Community::new();
     let limit_seen = {
         let event_log = MockEventLog::new();
         let seen = event_log.gift_limit_seen();
         let adjuster = LuckAdjuster::new(event_log, MockCommunityProvider::none());
-        adjuster.compute(&community, seq(1)).unwrap();
+        adjuster.compute(&community, seq(1)).await.unwrap();
         seen
     };
     assert_eq!(*limit_seen.lock().unwrap(), Some(100));
 }
 
-#[test]
-fn noop_gift_between_grants_excluded_from_bonus() {
+#[tokio::test]
+async fn noop_gift_between_grants_excluded_from_bonus() {
     let mut community = Community::new();
     let sender = Member::new("Alice");
     let recipient = Member::new("Bob");
@@ -289,6 +301,6 @@ fn noop_gift_between_grants_excluded_from_bonus() {
         MockCommunityProvider::with(community),
     );
 
-    let result = adjuster.compute(&Community::new(), seq(10)).unwrap();
+    let result = adjuster.compute(&Community::new(), seq(10)).await.unwrap();
     assert_eq!(result, vec![]);
 }

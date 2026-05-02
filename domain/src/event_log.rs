@@ -8,10 +8,11 @@ use crate::{
     member::{Member, MemberId},
 };
 
-/// A position in the shared event/effect log sequence.
+/// A position in the event/effect log sequence.
 ///
-/// Sequence IDs start at 1 and increase monotonically. Both events and effects
-/// draw from the same counter, so their IDs are globally ordered.
+/// Sequence IDs start at 1 and increase monotonically. Events and effects share the
+/// counter, so an event and its effect carry the same ID. Whether IDs are unique within
+/// a community or globally is determined by the storage implementation.
 #[derive(IntegerIdentifier)]
 #[allowed_values(all)]
 pub struct SequenceId(u64);
@@ -22,9 +23,9 @@ impl fmt::Display for SequenceId {
     }
 }
 
-/// Marker trait for types that occupy a position in the shared event/effect log sequence.
+/// Marker trait for types that occupy a position in the event/effect log sequence.
 pub trait HasSequenceId {
-    /// Returns the position of this entry in the shared event/effect log sequence.
+    /// Returns the position of this entry in the event/effect log sequence.
     fn sequence_id(&self) -> SequenceId;
 }
 
@@ -99,7 +100,7 @@ pub enum EventPayload {
 /// computed as [`Effect`](crate::effect::Effect)s.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
-    /// Position in the shared event/effect sequence.
+    /// Position in the event/effect log sequence.
     pub id: SequenceId,
     /// The community this event applies to.
     pub community_id: CommunityId,
@@ -149,11 +150,11 @@ pub enum StateMutation {
 /// The computed consequence of an [`Event`](crate::event::Event). An effect may contain
 /// zero mutations (a no-op, e.g. when the event violated an invariant) or many.
 ///
-/// An `Effect` carries the same [`SequenceId`] as its originating `Event`. Use the shared
-/// ID to correlate the two.
+/// An `Effect` carries the same [`SequenceId`] as its originating `Event`. Use the
+/// shared ID to correlate the two within a community.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Effect {
-    /// Position in the shared event/effect sequence. Equals the originating `Event`'s ID.
+    /// Position in the event/effect log sequence. Equals the originating `Event`'s ID.
     pub id: SequenceId,
     /// The community this effect applies to.
     pub community_id: CommunityId,

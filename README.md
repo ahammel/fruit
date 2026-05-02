@@ -116,6 +116,7 @@ Designed to run inside chat platforms:
 | `make p` | Format (`rustfmt`) |
 | `make l` | Lint (`clippy`) |
 | `make t` | Run tests |
+| `make ti` | Run integration tests (starts `amazon/dynamodb-local` via Docker Compose) |
 | `make tc` | Test coverage (requires `cargo-llvm-cov`) |
 | `make c` | Type-check (`cargo check`) |
 | `make b` | Debug build |

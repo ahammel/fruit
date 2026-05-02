@@ -1,0 +1,28 @@
+[package]
+name = "fruit-dynamo-db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anomalies = "0.2.2"
+async-trait = "0.1"
+aws-config = "1"
+aws-sdk-dynamodb = "1"
+aws-smithy-runtime-api = "1"
+exn = "0.3.0"
+fruit-domain = { path = "../domain" }
+newtype-ids = "0.1"
+newtype-ids-uuid = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+serde_dynamo = { version = "4", features = ["aws-sdk-dynamodb+1"] }
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+uuid = { version = "=1.11.0" }
+
+[dev-dependencies]
+aws-sdk-dynamodb = { version = "1", features = ["test-util"] }
+aws-smithy-mocks = "0.2"
+aws-smithy-types = "1"
+tokio = { version = "1", features = ["macros"] }
+uuid = "=1.11.0"

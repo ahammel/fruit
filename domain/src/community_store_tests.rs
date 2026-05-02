@@ -1,5 +1,6 @@
-use std::cell::Cell;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use async_trait::async_trait;
 use exn::Exn;
 use newtype_ids::IntegerIdentifier;
 use newtype_ids_uuid::UuidIdentifier;
@@ -19,19 +20,21 @@ fn err() -> Exn<Error> {
 
 struct ErrorRepo;
 
+#[async_trait]
 impl CommunityProvider for ErrorRepo {
     type Error = Error;
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Err(err())
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for ErrorRepo {
     type Error = Error;
-    fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
         Err(err())
     }
 }
@@ -44,19 +47,21 @@ struct GetOkPutErrorRepo {
     community: Community,
 }
 
+#[async_trait]
 impl CommunityProvider for GetOkPutErrorRepo {
     type Error = Error;
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(Some(self.community.clone()))
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for GetOkPutErrorRepo {
     type Error = Error;
-    fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, _: Community) -> Result<Community, Exn<Error>> {
         Err(err())
     }
 }
@@ -67,15 +72,24 @@ impl CommunityRepo for GetOkPutErrorRepo {}
 
 struct ErrorEventLog;
 
+#[async_trait]
 impl EventLogProvider for ErrorEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Err(err())
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
@@ -83,7 +97,7 @@ impl EventLogProvider for ErrorEventLog {
     ) -> Result<Vec<Effect>, Exn<Error>> {
         Err(err())
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -91,13 +105,21 @@ impl EventLogProvider for ErrorEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Err(err())
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Err(err())
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -111,19 +133,21 @@ impl EventLogProvider for ErrorEventLog {
 
 struct NoneLatestRepo;
 
+#[async_trait]
 impl CommunityProvider for NoneLatestRepo {
     type Error = Error;
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for NoneLatestRepo {
     type Error = Error;
-    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -134,15 +158,24 @@ impl CommunityRepo for NoneLatestRepo {}
 
 struct EmptyEffectsEventLog;
 
+#[async_trait]
 impl EventLogProvider for EmptyEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
@@ -150,7 +183,7 @@ impl EventLogProvider for EmptyEffectsEventLog {
     ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -158,13 +191,21 @@ impl EventLogProvider for EmptyEffectsEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -180,15 +221,24 @@ struct OneEffectEventLog {
     effect: Effect,
 }
 
+#[async_trait]
 impl EventLogProvider for OneEffectEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
@@ -196,7 +246,7 @@ impl EventLogProvider for OneEffectEventLog {
     ) -> Result<Vec<Effect>, Exn<Error>> {
         Ok(vec![self.effect.clone()])
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -204,13 +254,21 @@ impl EventLogProvider for OneEffectEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -222,34 +280,37 @@ impl EventLogProvider for OneEffectEventLog {
 
 // --- error propagation tests ---
 
-#[test]
-fn init_propagates_put_error() {
+#[tokio::test]
+async fn init_propagates_put_error() {
     let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.init().is_err());
+    assert!(store.init().await.is_err());
 }
 
-#[test]
-fn get_propagates_repo_error() {
+#[tokio::test]
+async fn get_propagates_repo_error() {
     let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.get(CommunityId::new(), SequenceId::zero()).is_err());
+    assert!(store
+        .get(CommunityId::new(), SequenceId::zero())
+        .await
+        .is_err());
 }
 
-#[test]
-fn get_latest_propagates_repo_error() {
+#[tokio::test]
+async fn get_latest_propagates_repo_error() {
     let store = CommunityStore::new(ErrorRepo, ErrorEventLog);
-    assert!(store.get_latest(CommunityId::new()).is_err());
+    assert!(store.get_latest(CommunityId::new()).await.is_err());
 }
 
-#[test]
-fn get_latest_propagates_event_log_error() {
+#[tokio::test]
+async fn get_latest_propagates_event_log_error() {
     let community = Community::new();
     let id = community.id;
     let store = CommunityStore::new(GetOkPutErrorRepo { community }, ErrorEventLog);
-    assert!(store.get_latest(id).is_err());
+    assert!(store.get_latest(id).await.is_err());
 }
 
-#[test]
-fn get_latest_propagates_put_error_after_applying_effects() {
+#[tokio::test]
+async fn get_latest_propagates_put_error_after_applying_effects() {
     let community = Community::new();
     let id = community.id;
     let effect = Effect {
@@ -261,26 +322,30 @@ fn get_latest_propagates_put_error_after_applying_effects() {
         GetOkPutErrorRepo { community },
         OneEffectEventLog { effect },
     );
-    assert!(store.get_latest(id).is_err());
+    assert!(store.get_latest(id).await.is_err());
 }
 
-#[test]
-fn get_with_get_ok_put_error_repo_returns_none() {
+#[tokio::test]
+async fn get_with_get_ok_put_error_repo_returns_none() {
     let community = Community::new();
     let id = community.id;
     let store = CommunityStore::new(GetOkPutErrorRepo { community }, ErrorEventLog);
-    assert!(store.get(id, SequenceId::zero()).unwrap().is_none());
+    assert!(store.get(id, SequenceId::zero()).await.unwrap().is_none());
 }
 
-#[test]
-fn get_latest_returns_none_when_community_not_found() {
+#[tokio::test]
+async fn get_latest_returns_none_when_community_not_found() {
     // Covers the `else { return Ok(None) }` branch for the NoneLatestRepo monomorphization.
     let store = CommunityStore::new(NoneLatestRepo, EmptyEffectsEventLog);
-    assert!(store.get_latest(CommunityId::new()).unwrap().is_none());
+    assert!(store
+        .get_latest(CommunityId::new())
+        .await
+        .unwrap()
+        .is_none());
 }
 
-#[test]
-fn get_latest_returns_community_when_no_pending_effects() {
+#[tokio::test]
+async fn get_latest_returns_community_when_no_pending_effects() {
     // Covers the `community.version == initial_version` early-return branch: no
     // effects are returned so version never advances and we skip the put.
     let community = Community::new();
@@ -291,7 +356,7 @@ fn get_latest_returns_community_when_no_pending_effects() {
         },
         EmptyEffectsEventLog,
     );
-    assert_eq!(store.get_latest(id).unwrap(), Some(community));
+    assert_eq!(store.get_latest(id).await.unwrap(), Some(community));
 }
 
 // --- mock repo that returns one community and accepts puts ---
@@ -300,19 +365,21 @@ struct GetOkPutOkRepo {
     community: Community,
 }
 
+#[async_trait]
 impl CommunityProvider for GetOkPutOkRepo {
     type Error = Error;
-    fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get(&self, _: CommunityId, _: SequenceId) -> Result<Option<Community>, Exn<Error>> {
         Ok(None)
     }
-    fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
+    async fn get_latest(&self, _: CommunityId) -> Result<Option<Community>, Exn<Error>> {
         Ok(Some(self.community.clone()))
     }
 }
 
+#[async_trait]
 impl CommunityPersistor for GetOkPutOkRepo {
     type Error = Error;
-    fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
+    async fn put(&self, c: Community) -> Result<Community, Exn<Error>> {
         Ok(c)
     }
 }
@@ -324,7 +391,7 @@ impl CommunityRepo for GetOkPutOkRepo {}
 
 struct MultiPageEffectsEventLog {
     effects: Vec<Effect>,
-    call_count: Cell<usize>,
+    call_count: AtomicUsize,
 }
 
 impl MultiPageEffectsEventLog {
@@ -338,36 +405,52 @@ impl MultiPageEffectsEventLog {
             .collect();
         Self {
             effects,
-            call_count: Cell::new(0),
+            call_count: AtomicUsize::new(0),
         }
     }
 }
 
+#[async_trait]
 impl EventLogProvider for MultiPageEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
         _: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        let n = self.call_count.get();
-        self.call_count.set(n + 1);
+        let n = self.call_count.fetch_add(1, Ordering::SeqCst);
         Ok(if n == 0 { self.effects.clone() } else { vec![] })
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -375,7 +458,7 @@ impl EventLogProvider for MultiPageEffectsEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -391,7 +474,7 @@ impl EventLogProvider for MultiPageEffectsEventLog {
 struct TwoPageEffectsEventLog {
     first_page: Vec<Effect>,
     second_page: Vec<Effect>,
-    call_count: Cell<usize>,
+    call_count: AtomicUsize,
 }
 
 impl TwoPageEffectsEventLog {
@@ -411,40 +494,56 @@ impl TwoPageEffectsEventLog {
         Self {
             first_page,
             second_page,
-            call_count: Cell::new(0),
+            call_count: AtomicUsize::new(0),
         }
     }
 }
 
+#[async_trait]
 impl EventLogProvider for TwoPageEffectsEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
         _: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        let n = self.call_count.get();
-        self.call_count.set(n + 1);
+        let n = self.call_count.fetch_add(1, Ordering::SeqCst);
         Ok(match n {
             0 => self.first_page.clone(),
             1 => self.second_page.clone(),
             _ => vec![],
         })
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -452,7 +551,7 @@ impl EventLogProvider for TwoPageEffectsEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -462,8 +561,8 @@ impl EventLogProvider for TwoPageEffectsEventLog {
     }
 }
 
-#[test]
-fn get_latest_paginates_through_effects_spanning_two_full_pages() {
+#[tokio::test]
+async fn get_latest_paginates_through_effects_spanning_two_full_pages() {
     // First page is exactly EFFECTS_PAGE_SIZE (loop must continue); second page has
     // one more effect. Final version must be PAGE_SIZE+1, not PAGE_SIZE — killing
     // the `< → <=` mutation which would stop after the first page.
@@ -472,7 +571,7 @@ fn get_latest_paginates_through_effects_spanning_two_full_pages() {
     let event_log = TwoPageEffectsEventLog::new(id);
     let expected_version = SequenceId::new(EFFECTS_PAGE_SIZE as u64 + 1);
     let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
-    let result = store.get_latest(id).unwrap().unwrap();
+    let result = store.get_latest(id).await.unwrap().unwrap();
     assert_eq!(result.version, expected_version);
 }
 
@@ -481,7 +580,7 @@ fn get_latest_paginates_through_effects_spanning_two_full_pages() {
 
 struct FirstPageThenErrorEventLog {
     effects: Vec<Effect>,
-    call_count: Cell<usize>,
+    call_count: AtomicUsize,
 }
 
 impl FirstPageThenErrorEventLog {
@@ -495,40 +594,56 @@ impl FirstPageThenErrorEventLog {
             .collect();
         Self {
             effects,
-            call_count: Cell::new(0),
+            call_count: AtomicUsize::new(0),
         }
     }
 }
 
+#[async_trait]
 impl EventLogProvider for FirstPageThenErrorEventLog {
     type Error = Error;
-    fn get_record(&self, _: SequenceId) -> Result<Option<Record>, Exn<Error>> {
+    async fn get_record(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Record>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effect_for_event(&self, _: SequenceId) -> Result<Option<Effect>, Exn<Error>> {
+    async fn get_effect_for_event(
+        &self,
+        _: CommunityId,
+        _: SequenceId,
+    ) -> Result<Option<Effect>, Exn<Error>> {
         Ok(None)
     }
-    fn get_effects_after(
+    async fn get_effects_after(
         &self,
         _: CommunityId,
         _: usize,
         _: SequenceId,
     ) -> Result<Vec<Effect>, Exn<Error>> {
-        let n = self.call_count.get();
-        self.call_count.set(n + 1);
+        let n = self.call_count.fetch_add(1, Ordering::SeqCst);
         if n == 0 {
             Ok(self.effects.clone())
         } else {
             Err(err())
         }
     }
-    fn get_latest_grant_events(&self, _: CommunityId, _: usize) -> Result<Vec<Event>, Exn<Error>> {
+    async fn get_latest_grant_events(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Event>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_latest_gift_records(&self, _: CommunityId, _: usize) -> Result<Vec<Record>, Exn<Error>> {
+    async fn get_latest_gift_records(
+        &self,
+        _: CommunityId,
+        _: usize,
+    ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_between(
+    async fn get_records_between(
         &self,
         _: CommunityId,
         _: SequenceId,
@@ -536,7 +651,7 @@ impl EventLogProvider for FirstPageThenErrorEventLog {
     ) -> Result<Vec<Record>, Exn<Error>> {
         Ok(vec![])
     }
-    fn get_records_before(
+    async fn get_records_before(
         &self,
         _: CommunityId,
         _: usize,
@@ -546,8 +661,8 @@ impl EventLogProvider for FirstPageThenErrorEventLog {
     }
 }
 
-#[test]
-fn get_latest_paginates_through_all_effects() {
+#[tokio::test]
+async fn get_latest_paginates_through_all_effects() {
     // Covers the loop-continues branch: the first page is exactly EFFECTS_PAGE_SIZE,
     // so the loop runs a second time before breaking on the empty second page.
     let community = Community::new();
@@ -555,17 +670,17 @@ fn get_latest_paginates_through_all_effects() {
     let event_log = MultiPageEffectsEventLog::new(id);
     let expected_version = SequenceId::new(EFFECTS_PAGE_SIZE as u64);
     let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
-    let result = store.get_latest(id).unwrap().unwrap();
+    let result = store.get_latest(id).await.unwrap().unwrap();
     assert_eq!(result.version, expected_version);
 }
 
-#[test]
-fn get_latest_error_on_second_batch_includes_batch_number_in_message() {
+#[tokio::test]
+async fn get_latest_error_on_second_batch_includes_batch_number_in_message() {
     let community = Community::new();
     let id = community.id;
     let event_log = FirstPageThenErrorEventLog::new(id);
     let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
-    let err = store.get_latest(id).unwrap_err();
+    let err = store.get_latest(id).await.unwrap_err();
     assert_eq!(
         err.to_string(),
         "Storage layer error: failed to retrieve effects for community at batch number 1"

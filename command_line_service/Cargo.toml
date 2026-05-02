@@ -11,3 +11,4 @@ path = "src/main.rs"
 fruit-domain = { path = "../domain" }
 fruit-in-memory-db = { path = "../in_memory_db" }
 rand = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

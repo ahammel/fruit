@@ -20,12 +20,12 @@ use fruit_in_memory_db::{
 ///
 /// Creates a single in-memory community and enters a read-eval-print loop.
 /// Type `help` at the prompt for a list of available commands.
-pub fn run() {
+pub async fn run() {
     let event_log_repo = InMemoryEventLogRepo::new();
     let community_repo = InMemoryCommunityRepo::new();
     let event_log = EventLogStore::new(&event_log_repo);
     let store = CommunityStore::new(&community_repo, &event_log_repo);
-    let community_id = store.init().unwrap().id;
+    let community_id = store.init().await.unwrap().id;
     let mut providence = Providence::new(
         &event_log_repo,
         &community_repo,
@@ -38,7 +38,7 @@ pub fn run() {
     loop {
         print!("\x1b[2J\x1b[H");
 
-        print_community(&fetch(&store, community_id));
+        print_community(&fetch(&store, community_id).await);
         println!();
         if show_help {
             print_help();
@@ -48,7 +48,7 @@ pub fn run() {
         }
 
         if let Some(log_lines) = show_log_lines {
-            cmd_log(&event_log, community_id, log_lines)
+            cmd_log(&event_log, community_id, log_lines).await;
         }
 
         print!("> ");
@@ -69,12 +69,12 @@ pub fn run() {
             show_log_lines = None
         }
         match tokens[0] {
-            "add" => cmd_add(&event_log, community_id, &tokens[1..]),
-            "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]),
-            "grant" => cmd_grant(&store, &mut providence, community_id, &tokens[1..]),
-            "gift" => cmd_gift(&store, &event_log, community_id, &tokens[1..]),
-            "burn" => cmd_burn(&store, &event_log, community_id, &tokens[1..]),
-            "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]),
+            "add" => cmd_add(&event_log, community_id, &tokens[1..]).await,
+            "remove" => cmd_remove(&store, &event_log, community_id, &tokens[1..]).await,
+            "grant" => cmd_grant(&store, &mut providence, community_id, &tokens[1..]).await,
+            "gift" => cmd_gift(&store, &event_log, community_id, &tokens[1..]).await,
+            "burn" => cmd_burn(&store, &event_log, community_id, &tokens[1..]).await,
+            "luck" => cmd_luck(&store, &event_log, community_id, &tokens[1..]).await,
             "log" => {
                 match &tokens[1..].first().and_then(|s| s.parse::<usize>().ok()) {
                     Some(n) => show_log_lines = Some(*n),
@@ -92,7 +92,7 @@ pub fn run() {
 
 type Store<'a> = CommunityStore<&'a InMemoryCommunityRepo, &'a InMemoryEventLogRepo>;
 
-fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, args: &[&str]) {
+async fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, args: &[&str]) {
     if args.is_empty() {
         println!("usage: add <name>");
         return;
@@ -107,12 +107,16 @@ fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, ar
                 member_id: member.id,
             },
         )
+        .await
         .unwrap();
     let mutations = vec![StateMutation::AddMember { member }];
-    event_log.append_effect(event.id, id, mutations).unwrap();
+    event_log
+        .append_effect(event.id, id, mutations)
+        .await
+        .unwrap();
 }
 
-fn cmd_remove(
+async fn cmd_remove(
     store: &Store<'_>,
     event_log: &EventLogStore<&InMemoryEventLogRepo>,
     id: CommunityId,
@@ -123,7 +127,7 @@ fn cmd_remove(
         return;
     }
     let name = args.join(" ");
-    let community = fetch(store, id);
+    let community = fetch(store, id).await;
     match community
         .members
         .values()
@@ -133,9 +137,13 @@ fn cmd_remove(
         Some(member_id) => {
             let event = event_log
                 .append_event(id, EventPayload::RemoveMember { member_id })
+                .await
                 .unwrap();
             let mutations = vec![StateMutation::RemoveMember { member_id }];
-            event_log.append_effect(event.id, id, mutations).unwrap();
+            event_log
+                .append_effect(event.id, id, mutations)
+                .await
+                .unwrap();
             println!("removed {name}");
         }
         None => println!("no member named '{name}'"),
@@ -148,7 +156,7 @@ type Prov<'a> = Providence<
     RandomGranter<rand::rngs::ThreadRng>,
 >;
 
-fn cmd_grant(store: &Store<'_>, providence: &mut Prov<'_>, id: CommunityId, args: &[&str]) {
+async fn cmd_grant(store: &Store<'_>, providence: &mut Prov<'_>, id: CommunityId, args: &[&str]) {
     let count = match args.first().and_then(|s| s.parse::<usize>().ok()) {
         Some(n) => n,
         None => {
@@ -156,11 +164,11 @@ fn cmd_grant(store: &Store<'_>, providence: &mut Prov<'_>, id: CommunityId, args
             return;
         }
     };
-    let community = fetch(store, id);
-    providence.grant_fruit(&community, count).unwrap();
+    let community = fetch(store, id).await;
+    providence.grant_fruit(&community, count).await.unwrap();
 }
 
-fn cmd_gift(
+async fn cmd_gift(
     store: &Store<'_>,
     event_log: &EventLogStore<&InMemoryEventLogRepo>,
     id: CommunityId,
@@ -183,7 +191,7 @@ fn cmd_gift(
         }
     };
 
-    let community = fetch(store, id);
+    let community = fetch(store, id).await;
 
     let sender_id = match community
         .members
@@ -220,15 +228,19 @@ fn cmd_gift(
                 message: None,
             },
         )
+        .await
         .unwrap();
     let mutations = compute_gift(&community, sender_id, recipient_id, fruit);
     if mutations.is_empty() {
         println!("{sender_name} does not hold {emoji}");
     }
-    event_log.append_effect(event.id, id, mutations).unwrap();
+    event_log
+        .append_effect(event.id, id, mutations)
+        .await
+        .unwrap();
 }
 
-fn cmd_burn(
+async fn cmd_burn(
     store: &Store<'_>,
     event_log: &EventLogStore<&InMemoryEventLogRepo>,
     id: CommunityId,
@@ -253,7 +265,7 @@ fn cmd_burn(
         }
     }
 
-    let community = fetch(store, id);
+    let community = fetch(store, id).await;
 
     let member_id = match community
         .members
@@ -276,15 +288,19 @@ fn cmd_burn(
                 fruits: fruits.clone(),
             },
         )
+        .await
         .unwrap();
     let mutations = compute_burn(&community, member_id, &fruits);
     if mutations.is_empty() {
         println!("{name} holds none of the requested fruits");
     }
-    event_log.append_effect(event.id, id, mutations).unwrap();
+    event_log
+        .append_effect(event.id, id, mutations)
+        .await
+        .unwrap();
 }
 
-fn cmd_luck(
+async fn cmd_luck(
     store: &Store<'_>,
     event_log: &EventLogStore<&InMemoryEventLogRepo>,
     id: CommunityId,
@@ -309,14 +325,18 @@ fn cmd_luck(
     };
     let luck = (luck_f64 * u8::MAX as f64).round() as u8;
 
-    let community = fetch(store, id);
+    let community = fetch(store, id).await;
 
     if args.len() == 1 {
         let event = event_log
             .append_event(id, EventPayload::SetCommunityLuck { luck })
+            .await
             .unwrap();
         let mutations = vec![StateMutation::SetCommunityLuck { luck }];
-        let effect = event_log.append_effect(event.id, id, mutations).unwrap();
+        let effect = event_log
+            .append_effect(event.id, id, mutations)
+            .await
+            .unwrap();
         let mut community = community;
         community.apply_effects([effect]);
         println!("community luck set to {luck_f64}");
@@ -331,9 +351,13 @@ fn cmd_luck(
             Some(member_id) => {
                 let event = event_log
                     .append_event(id, EventPayload::SetMemberLuck { member_id, luck })
+                    .await
                     .unwrap();
                 let mutations = vec![StateMutation::SetMemberLuck { member_id, luck }];
-                let effect = event_log.append_effect(event.id, id, mutations).unwrap();
+                let effect = event_log
+                    .append_effect(event.id, id, mutations)
+                    .await
+                    .unwrap();
                 let mut community = community;
                 community.apply_effects([effect]);
                 println!("{name} luck set to {luck_f64}");
@@ -343,12 +367,13 @@ fn cmd_luck(
     }
 }
 
-fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n: usize) {
+async fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n: usize) {
     let records = event_log
         .get_records_before()
         .community_id(id)
         .limit(n)
         .call()
+        .await
         .unwrap();
     if records.is_empty() {
         println!("no events recorded");
@@ -359,9 +384,10 @@ fn cmd_log(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: CommunityId, n:
     }
 }
 
-fn fetch(store: &Store<'_>, id: CommunityId) -> Community {
+async fn fetch(store: &Store<'_>, id: CommunityId) -> Community {
     store
         .get_latest(id)
+        .await
         .expect("storage error")
         .expect("community not found")
 }

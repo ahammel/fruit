@@ -38,7 +38,7 @@ br build-release:
 
 tc test-coverage:
 	cargo tarpaulin \
-		--packages fruit-domain fruit-in-memory-db \
+		--packages fruit-domain fruit-in-memory-db fruit-dynamo-db \
 		--exclude-files "*_tests.rs" \
 		--fail-under 100
 
@@ -61,6 +61,16 @@ tm test-mutation: bin/cargo-mutants
 	PATH="$(CURDIR)/bin:$$PATH" cargo mutants \
 		--exclude "command_line_service/**" \
 		-j 4
+
+ls-up:
+	docker compose up -d dynamodb-local
+
+ls-down:
+	docker compose down
+
+ti test-integration: ls-up
+	LOCALSTACK_ENDPOINT=http://localhost:8000 \
+	  cargo test --package fruit-dynamo-db --test integration
 
 w watch:
 	fd .rs | entr -s 'clear && make c && make l && make tc && make pc'
