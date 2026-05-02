@@ -19,21 +19,24 @@ or community average could plausibly match (−personal luck), and quid-pro-quo 
 ## Architecture
 
 The project follows Domain-Driven Design and Hexagonal Architecture, structured as a
-Cargo workspace with three crates:
+Cargo workspace with five crates:
 
 ```
 fruit (workspace)
 ├── domain/               # Pure domain logic; no I/O
 ├── in_memory_db/         # Implements domain storage ports in RAM
 ├── dynamo_db/            # Implements domain storage ports against Amazon DynamoDB
-└── command_line_service/ # Wires everything together; hosts the REPL
+├── command_line_service/ # Wires everything together; hosts the REPL
+└── slack_service/        # AWS Lambda service for the Slack integration
 ```
 
 ### Dependency rule
 
 All arrows point toward `domain`. `domain` has no outward dependencies on internal
-crates. `in_memory_db`, `dynamo_db`, and `command_line_service` depend on `domain`;
-only `command_line_service` depends on `in_memory_db`.
+crates. `in_memory_db`, `dynamo_db`, `command_line_service`, and `slack_service`
+depend on `domain`; only `command_line_service` depends on `in_memory_db`;
+`slack_service` depends on `dynamo_db` and shares its DynamoDB table (same
+single-table schema, same `TABLE_NAME` environment variable).
 
 ---
 
@@ -948,4 +951,11 @@ documented on each method.
 ### Pre-commit hook order
 
 `cargo check` → `cargo fmt --check` → `cargo clippy`
+
+---
+
+## Slack Integration
+
+See [docs/spec/Slack.md](spec/Slack.md) for the Slack workspace integration specification,
+including design decisions, interaction model, and AWS architecture.
 Tests are **not** run in the pre-commit hook (run `make t` or `make tc` manually).

@@ -105,6 +105,16 @@ Designed to run inside chat platforms:
 
 ## Development
 
+### Crates
+
+| Crate | Description |
+|-------|-------------|
+| `domain` | Pure domain logic; no I/O |
+| `in_memory_db` | In-memory storage port implementations (used by the REPL) |
+| `dynamo_db` | DynamoDB storage port implementations |
+| `command_line_service` | Wires domain + in-memory DB; hosts the interactive REPL |
+| `slack_service` | AWS Lambda service for the Slack integration; binary named `bootstrap` |
+
 ### Prerequisites
 
 - Rust (stable)
