@@ -37,12 +37,12 @@ wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack respon
 
 ## 2 — Slack request verification
 
-- [ ] Implement `fn verify_slack_signature(signing_secret: &str, timestamp: &str,
+- [x] Implement `fn verify_slack_signature(signing_secret: &str, timestamp: &str,
       body: &[u8], sig_header: &str) -> bool` using `hmac::Hmac<sha2::Sha256>`
-- [ ] Reject requests where `abs(now - timestamp) > 300s` (replay protection)
-- [ ] Return HTTP 401 for invalid signatures; all other handler logic runs only after
+- [x] Reject requests where `abs(now - timestamp) > 300s` (replay protection)
+- [x] Return HTTP 401 for invalid signatures; all other handler logic runs only after
       verification passes
-- [ ] Unit tests: valid signature, expired timestamp, wrong secret
+- [x] Unit tests: valid signature, expired timestamp, wrong secret
 
 ---
 
