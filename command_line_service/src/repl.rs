@@ -255,12 +255,18 @@ async fn cmd_burn(
     let emoji_args = &args[1..];
 
     let mut fruits = Vec::new();
-    for emoji in emoji_args {
-        match FRUITS.iter().find(|f| f.emoji == *emoji) {
-            Some(f) => fruits.push(*f),
-            None => {
-                println!("unknown fruit emoji '{emoji}'");
-                return;
+    for token in emoji_args {
+        let mut remaining = *token;
+        while !remaining.is_empty() {
+            match FRUITS.iter().find(|f| remaining.starts_with(f.emoji)) {
+                Some(f) => {
+                    fruits.push(*f);
+                    remaining = &remaining[f.emoji.len()..];
+                }
+                None => {
+                    println!("unknown fruit emoji '{token}'");
+                    return;
+                }
             }
         }
     }
