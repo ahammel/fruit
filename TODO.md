@@ -51,22 +51,27 @@ wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack respon
 Each slash command POST delivers `application/x-www-form-urlencoded`. Parse into a
 shared `SlashPayload` struct, then dispatch.
 
-- [ ] Parse `command`, `text`, `channel_id`, `user_id`, `user_name` from the POST body
-- [ ] Map `channel_id` → `CommunityId` (UUIDv5)
-- [ ] Map `user_id` → `MemberId` (UUIDv5)
-- [ ] Implement commands (each calls the same domain operations as the REPL):
-  - [ ] `/fruit bag` — show the caller's current bag and luck
-  - [ ] `/fruit gift <@user> <emoji>` — gift one fruit
-  - [ ] `/fruit burn <emoji> [<emoji> ...]` — burn one or more fruits (reuse the
-        greedy emoji-parsing logic from the REPL)
-  - [ ] `/fruit luck` — show community and personal luck scores
-  - [ ] `/fruit leaderboard` — show members sorted by luck
-  - [ ] `/fruit help` — list available commands
-- [ ] Auto-provision: if no community exists for `channel_id`, call
-      `CommunityStore::init()` and add the calling user as the first member before
-      processing the command
-- [ ] Return Slack Block Kit JSON for all non-error responses
-- [ ] Unit tests: all commands, missing args, unknown subcommand
+Design decisions: no `/fruit grant` (grants come from EventBridge only); explicit
+`/fruit join` and `/fruit leave` instead of auto-provisioning on first command;
+`/fruit gift` takes an optional message argument.
+
+- [x] Parse `text`, `channel_id`, `user_id`, `user_name`, `team_id` from the POST body
+- [x] Map `channel_id` → `CommunityId` (UUIDv5), `user_id` → `MemberId` (UUIDv5)
+      via `identity.rs`; workspace namespace derived from `team_id`
+- [x] Implement commands (each calls the same domain operations as the REPL):
+  - [x] `/fruit join` — join (or provision) the community for this channel
+  - [x] `/fruit leave` — leave the community
+  - [x] `/fruit bag` — show the caller's current bag and luck
+  - [x] `/fruit gift <@user> <emoji> [message]` — gift one fruit with optional message
+  - [x] `/fruit burn <emoji> [<emoji> ...]` — burn one or more fruits (greedy
+        emoji-parsing)
+  - [x] `/fruit luck` — show community and personal luck scores
+  - [x] `/fruit leaderboard` — show members sorted by luck
+  - [x] `/fruit help` — list available commands
+- [x] Provisioning: `/fruit join` creates the community with a deterministic
+      `CommunityId` derived from `channel_id` if none exists
+- [x] Return Slack Block Kit JSON for all responses
+- [x] Unit tests: all commands, missing args, unknown subcommand (38 tests total)
 
 ---
 
