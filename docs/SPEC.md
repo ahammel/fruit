@@ -948,4 +948,11 @@ documented on each method.
 ### Pre-commit hook order
 
 `cargo check` → `cargo fmt --check` → `cargo clippy`
+
+---
+
+## Slack Integration
+
+See [docs/spec/Slack.md](spec/Slack.md) for the Slack workspace integration specification,
+including design decisions, interaction model, and AWS architecture.
 Tests are **not** run in the pre-commit hook (run `make t` or `make tc` manually).

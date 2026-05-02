@@ -2,21 +2,13 @@
 
 ## Design decisions (resolve before coding)
 
-- [ ] **Community granularity**: one community per Slack channel (recommended — lets
-      multiple games run in the same workspace) or per workspace?
-- [ ] **Interaction model**: slash commands (e.g. `/fruit grant 3`) are simpler and
-      give synchronous responses; the Events API is needed only if the bot should react
-      to ambient messages. Decide before writing the handler.
-- [ ] **Grant scheduling**: scheduled EventBridge rule invoking a separate Lambda, or
-      a `/fruit grant` slash command? The former enables automatic ticks; the latter
-      gives players control.
-- [ ] **Identity mapping**: Slack user IDs and channel IDs need to map to `MemberId`
-      and `CommunityId`. Options:
-      - Derive them deterministically with UUID v5 (no extra storage; preferred if IDs
-        never need to be remapped).
-      - Store explicit mappings in DynamoDB (extra table; needed if remapping is
-        required, e.g. a user appears in multiple channels with separate member
-        histories).
+- [x] **Community granularity**: one community per workspace.
+- [x] **Interaction model**: slash commands with proactive `chat.postMessage` notifications
+      to affected users (option B — same Lambda, extra `chat:write` scope).
+- [x] **Grant scheduling**: EventBridge cron triggering the same `FruitLambda` (single
+      Lambda handles both API Gateway and EventBridge events).
+- [x] **Identity mapping**: deterministic UUIDv5 — workspace namespace derived from
+      `team_id`, member ID derived from `(workspace_ns, slack_user_id)`.
 
 ---
 
@@ -75,14 +67,12 @@ shared `SlashPayload` struct, then dispatch.
 
 ---
 
-## 4 — Scheduled grant Lambda (if EventBridge scheduling chosen)
+## 4 — Scheduled grant handler (EventBridge path in `FruitLambda`)
 
-- [ ] Add a second `[[bin]] name = "scheduler"` target (or a separate crate) for the
-      scheduled handler
+- [ ] Dispatch EventBridge events in the same Lambda entry point as slash commands
 - [ ] Accept an EventBridge event carrying `community_id` and `count`
 - [ ] Reuse `Providence::grant_fruit` exactly as the REPL does
-- [ ] Optionally post a Slack message to the channel via `chat.postMessage` after the
-      grant completes
+- [ ] Post a Slack message to the channel via `chat.postMessage` after the grant completes
 
 ---
 
