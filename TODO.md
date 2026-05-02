@@ -29,6 +29,9 @@ wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack respon
   - `fruit-domain` + `fruit-dynamo-db`
 - [ ] Add `[[bin]] name = "bootstrap"` target (Lambda requires the binary to be named
       `bootstrap` when using the `provided.al2023` runtime)
+- [ ] Update `README.md`: add `slack_service` to the crate list
+- [ ] Update `SPEC.md`: cover handler architecture, identity mapping, and DynamoDB
+      table sharing
 
 ---
 
@@ -39,6 +42,7 @@ wires `dynamo_db` repos, handles HTTP from API Gateway, and returns Slack respon
 - [ ] Reject requests where `abs(now - timestamp) > 300s` (replay protection)
 - [ ] Return HTTP 401 for invalid signatures; all other handler logic runs only after
       verification passes
+- [ ] Unit tests: valid signature, expired timestamp, wrong secret
 
 ---
 
@@ -48,12 +52,10 @@ Each slash command POST delivers `application/x-www-form-urlencoded`. Parse into
 shared `SlashPayload` struct, then dispatch.
 
 - [ ] Parse `command`, `text`, `channel_id`, `user_id`, `user_name` from the POST body
-- [ ] Map `channel_id` → `CommunityId` (via UUID v5 or lookup — see design decision)
-- [ ] Map `user_id` → `MemberId` (same approach)
+- [ ] Map `channel_id` → `CommunityId` (UUIDv5)
+- [ ] Map `user_id` → `MemberId` (UUIDv5)
 - [ ] Implement commands (each calls the same domain operations as the REPL):
   - [ ] `/fruit bag` — show the caller's current bag and luck
-  - [ ] `/fruit grant <n>` — grant N fruits to every member (gated to admins or
-        scheduled-only, depending on the grant-scheduling decision)
   - [ ] `/fruit gift <@user> <emoji>` — gift one fruit
   - [ ] `/fruit burn <emoji> [<emoji> ...]` — burn one or more fruits (reuse the
         greedy emoji-parsing logic from the REPL)
@@ -64,6 +66,7 @@ shared `SlashPayload` struct, then dispatch.
       `CommunityStore::init()` and add the calling user as the first member before
       processing the command
 - [ ] Return Slack Block Kit JSON for all non-error responses
+- [ ] Unit tests: all commands, missing args, unknown subcommand
 
 ---
 
@@ -73,6 +76,7 @@ shared `SlashPayload` struct, then dispatch.
 - [ ] Accept an EventBridge event carrying `community_id` and `count`
 - [ ] Reuse `Providence::grant_fruit` exactly as the REPL does
 - [ ] Post a Slack message to the channel via `chat.postMessage` after the grant completes
+- [ ] Unit tests: grant dispatched, notification sent, error paths
 
 ---
 
@@ -94,6 +98,7 @@ shared `SlashPayload` struct, then dispatch.
       `dynamodb:Query` on the table ARN only (least privilege)
 - [ ] SSM Parameter Store (or Secrets Manager) for `SLACK_SIGNING_SECRET`; grant the
       Lambda role `ssm:GetParameter` on the specific path
+- [ ] Update `SPEC.md`: record SAM vs CDK choice and infrastructure layout
 
 ---
 
@@ -105,6 +110,8 @@ shared `SlashPayload` struct, then dispatch.
       summaries), `users:read` (resolve display names if not relying on `user_name`)
 - [ ] Copy the **Signing Secret** to SSM; copy the **Bot Token** if `chat.postMessage`
       is used
+- [ ] Document setup steps in `SPEC.md` (invite the bot to a channel, first `/fruit`
+      command auto-provisions the community)
 
 ---
 
@@ -117,27 +124,8 @@ shared `SlashPayload` struct, then dispatch.
 - [ ] Verify the binary is named `bootstrap` in the Lambda zip
 - [ ] Add `aarch64-unknown-linux-musl` to `rust-toolchain.toml` (or document the
       `rustup target add` step in README)
-
----
-
-## 8 — Testing
-
-- [ ] Unit tests for `verify_slack_signature` (valid, expired timestamp, wrong secret)
-- [ ] Unit tests for slash command parsing (all commands, missing args, unknown
-      subcommand)
 - [ ] Integration tests against a local Lambda emulator (`cargo lambda watch`) using
       recorded Slack payloads
 - [ ] Update `make ti` or add `make ti-slack` to run Slack-specific integration tests
       against `amazon/dynamodb-local`
-
----
-
-## 9 — Documentation
-
-- [ ] Update `README.md`: add `slack_service` to the crate list and document the new
-      Makefile targets
-- [ ] Update `SPEC.md`: add a `Slack Service` section covering the handler architecture,
-      community/member identity mapping decision, and the DynamoDB table (shared with or
-      separate from the existing schema)
-- [ ] Document the Slack app setup steps (invite the bot to a channel, first `/fruit`
-      command auto-provisions the community)
+- [ ] Update `README.md`: document new Makefile targets
