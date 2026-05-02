@@ -88,23 +88,6 @@ impl CommunityProvider for DynamoDbCommunityRepo {
     }
 }
 
-#[async_trait]
-impl CommunityProvider for &DynamoDbCommunityRepo {
-    type Error = Error;
-
-    async fn get(
-        &self,
-        id: CommunityId,
-        version: SequenceId,
-    ) -> Result<Option<Community>, Exn<Self::Error>> {
-        (*self).get(id, version).await
-    }
-
-    async fn get_latest(&self, id: CommunityId) -> Result<Option<Community>, Exn<Self::Error>> {
-        (*self).get_latest(id).await
-    }
-}
-
 // ── CommunityPersistor ────────────────────────────────────────────────────────
 
 #[async_trait]
@@ -146,19 +129,9 @@ impl CommunityPersistor for DynamoDbCommunityRepo {
     }
 }
 
-#[async_trait]
-impl CommunityPersistor for &DynamoDbCommunityRepo {
-    type Error = Error;
-
-    async fn put(&self, community: Community) -> Result<Community, Exn<Self::Error>> {
-        (*self).put(community).await
-    }
-}
-
 // ── CommunityRepo ─────────────────────────────────────────────────────────────
 
 impl CommunityRepo for DynamoDbCommunityRepo {}
-impl CommunityRepo for &DynamoDbCommunityRepo {}
 
 #[cfg(test)]
 #[path = "community_repo_tests.rs"]
