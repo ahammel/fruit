@@ -64,10 +64,9 @@ where
             None => return Ok(None),
         };
         let initial_version = community.version;
-        let mut done = false;
-        let i = 0;
-        while !done {
-            let i = i + 1;
+        let mut i = 0usize;
+        loop {
+            i += 1;
             let prev_version = community.version;
             let batch = self
                 .event_log_provider
@@ -79,10 +78,10 @@ where
                         e,
                     )
                 })?;
-            done = batch.len() < EFFECTS_PAGE_SIZE;
+            let exhausted = batch.len() < EFFECTS_PAGE_SIZE;
             community.apply_effects(batch);
-            if community.version == prev_version {
-                done = true;
+            if exhausted || community.version == prev_version {
+                break;
             }
         }
         if community.version == initial_version {

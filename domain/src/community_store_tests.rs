@@ -585,7 +585,11 @@ struct FirstPageThenErrorEventLog {
 
 impl FirstPageThenErrorEventLog {
     fn new(community_id: CommunityId) -> Self {
-        let effects = (1..=EFFECTS_PAGE_SIZE as u64)
+        Self::with_first_page_size(community_id, EFFECTS_PAGE_SIZE)
+    }
+
+    fn with_first_page_size(community_id: CommunityId, n: usize) -> Self {
+        let effects = (1..=n as u64)
             .map(|i| Effect {
                 id: SequenceId::new(i),
                 community_id,
@@ -675,6 +679,19 @@ async fn get_latest_paginates_through_all_effects() {
 }
 
 #[tokio::test]
+async fn get_latest_partial_page_breaks_without_fetching_second_batch() {
+    // With `||`, exhausted=true on the first (partial) batch causes an immediate break
+    // before any second fetch. The `&&` mutant would not break here because the version
+    // advanced, and would then hit the error on the second call.
+    let community = Community::new();
+    let id = community.id;
+    let event_log = FirstPageThenErrorEventLog::with_first_page_size(id, 1);
+    let store = CommunityStore::new(GetOkPutOkRepo { community }, event_log);
+    let result = store.get_latest(id).await.unwrap().unwrap();
+    assert_eq!(result.version, SequenceId::new(1));
+}
+
+#[tokio::test]
 async fn get_latest_error_on_second_batch_includes_batch_number_in_message() {
     let community = Community::new();
     let id = community.id;
@@ -683,6 +700,6 @@ async fn get_latest_error_on_second_batch_includes_batch_number_in_message() {
     let err = store.get_latest(id).await.unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Storage layer error: failed to retrieve effects for community at batch number 1"
+        "Storage layer error: failed to retrieve effects for community at batch number 2"
     );
 }

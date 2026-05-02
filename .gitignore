@@ -4,5 +4,4 @@ mutants.out.old/
 /bin/
 /.cargo-lock
 /share/
-tarpaulin-report.html
 ./TODO.md
