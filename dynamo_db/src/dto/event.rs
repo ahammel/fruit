@@ -84,6 +84,7 @@ pub(crate) enum EventPayloadDto {
     Burn {
         member_id: ByteBuf,
         fruits: Vec<String>,
+        message: Option<String>,
     },
 }
 
@@ -119,9 +120,14 @@ impl From<&EventPayload> for EventPayloadDto {
                 fruit: fruit_name(*fruit),
                 message: message.clone(),
             },
-            EventPayload::Burn { member_id, fruits } => EventPayloadDto::Burn {
+            EventPayload::Burn {
+                member_id,
+                fruits,
+                message,
+            } => EventPayloadDto::Burn {
                 member_id: uuid_bytes(*member_id),
                 fruits: fruits.iter().copied().map(fruit_name).collect(),
+                message: message.clone(),
             },
         }
     }
@@ -165,12 +171,14 @@ impl TryFrom<EventPayloadDto> for EventPayload {
             EventPayloadDto::Burn {
                 member_id: mid,
                 fruits,
+                message,
             } => EventPayload::Burn {
                 member_id: member_id_from_bytes(&mid)?,
                 fruits: fruits
                     .iter()
                     .map(|n| fruit_from_name(n))
                     .collect::<Result<_, _>>()?,
+                message,
             },
         })
     }

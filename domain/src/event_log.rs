@@ -92,6 +92,8 @@ pub enum EventPayload {
         member_id: MemberId,
         /// The fruits requested to be burned (duplicates allowed).
         fruits: Vec<Fruit>,
+        /// An optional message from the member about why they are burning.
+        message: Option<String>,
     },
 }
 

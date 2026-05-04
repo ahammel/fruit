@@ -39,6 +39,14 @@ where
             .map_err(|e| StorageLayerError::raise("failed to initialize community", e))
     }
 
+    /// Creates and persists a new community at the given `id`.
+    pub async fn provision(&self, id: CommunityId) -> Result<Community, Exn<Error>> {
+        self.community_repo
+            .put(Community::new().with_id(id))
+            .await
+            .map_err(|e| StorageLayerError::raise("failed to provision community", e))
+    }
+
     /// Returns the community snapshot at the given `version`, or `None` if not found.
     pub async fn get(
         &self,
