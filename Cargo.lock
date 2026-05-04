@@ -1041,6 +1041,7 @@ dependencies = [
 name = "fruit-slack-service"
 version = "0.1.0"
 dependencies = [
+ "anomalies",
  "aws-config",
  "aws-sdk-dynamodb",
  "exn",

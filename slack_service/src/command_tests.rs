@@ -33,6 +33,16 @@ fn bob_id() -> MemberId {
     crate::identity::member_id_for(NS, "U_BOB")
 }
 
+fn stores<'a>(
+    cr: &'a InMemoryCommunityRepo,
+    elr: &'a InMemoryEventLogRepo,
+) -> (
+    CommunityStore<&'a InMemoryCommunityRepo, &'a InMemoryEventLogRepo>,
+    EventLogStore<&'a InMemoryEventLogRepo>,
+) {
+    (CommunityStore::new(cr, elr), EventLogStore::new(elr))
+}
+
 /// Provisions a community and adds alice as a member with effects applied,
 /// so subsequent `get_latest` calls reflect her membership.
 async fn setup_alice(
@@ -131,24 +141,17 @@ async fn setup_gift_scenario(
 
 #[tokio::test]
 async fn join_provisions_community_and_records_event() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "join",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "join")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -164,25 +167,18 @@ async fn join_provisions_community_and_records_event() {
 
 #[tokio::test]
 async fn join_second_member_does_not_reprovision() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, _alice_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, _alice_id) = setup_alice(&cr, &elr).await;
     let bob_id = bob_id();
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        bob_id,
-        "bob",
-        NS,
-        "join",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, bob_id, "bob", NS, "join")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -198,20 +194,13 @@ async fn join_second_member_does_not_reprovision() {
 
 #[tokio::test]
 async fn join_already_member_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "join",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "join")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -222,24 +211,17 @@ async fn join_already_member_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn leave_records_remove_member_event() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "leave")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -255,41 +237,27 @@ async fn leave_records_remove_member_event() {
 
 #[tokio::test]
 async fn leave_not_member_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, _) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, _) = setup_alice(&cr, &elr).await;
     let outsider_id = bob_id();
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        outsider_id,
-        "bob",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, outsider_id, "bob", NS, "leave")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
 
 #[tokio::test]
 async fn leave_no_community_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "leave")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -298,20 +266,13 @@ async fn leave_no_community_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn bag_shows_empty_bag_without_luck() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "bag",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "bag")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -327,12 +288,13 @@ async fn bag_shows_empty_bag_without_luck() {
 
 #[tokio::test]
 async fn bag_not_member_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, _) = ids();
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         crate::identity::member_id_for(NS, "U_STRANGER"),
         "stranger",
@@ -349,13 +311,13 @@ async fn bag_not_member_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn gift_records_gift_event() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, alice_id, _bob_id) =
-        setup_gift_scenario(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, alice_id, _bob_id) = setup_gift_scenario(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         alice_id,
         "alice",
@@ -367,7 +329,7 @@ async fn gift_records_gift_event() {
 
     assert_eq!(response["response_type"], "in_channel");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -383,32 +345,26 @@ async fn gift_records_gift_event() {
 
 #[tokio::test]
 async fn gift_missing_args_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "gift",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "gift")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
 
 #[tokio::test]
 async fn gift_unknown_emoji_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         member_id,
         "alice",
@@ -423,13 +379,14 @@ async fn gift_unknown_emoji_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn gift_fruit_not_held_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, alice_id, _) = setup_gift_scenario(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
     // Alice holds 🍎 but not 🍋
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         alice_id,
         "alice",
@@ -444,12 +401,13 @@ async fn gift_fruit_not_held_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn gift_recipient_not_member_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, alice_id, _) = setup_gift_scenario(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         alice_id,
         "alice",
@@ -466,24 +424,17 @@ async fn gift_recipient_not_member_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn burn_records_burn_event() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, alice_id, _) = setup_gift_scenario(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        alice_id,
-        "alice",
-        NS,
-        "burn 🍎",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, alice_id, "alice", NS, "burn 🍎")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "in_channel");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -499,12 +450,13 @@ async fn burn_records_burn_event() {
 
 #[tokio::test]
 async fn burn_with_message_includes_message_in_event_and_response() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, alice_id, _) = setup_gift_scenario(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         alice_id,
         "alice",
@@ -518,7 +470,7 @@ async fn burn_with_message_includes_message_in_event_and_response() {
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
     assert!(text.contains("for the good of all"), "got: {text}");
 
-    let event_log = EventLogStore::new(&event_log_repo);
+    let event_log = EventLogStore::new(&elr);
     let records = event_log
         .get_records_before()
         .community_id(community_id)
@@ -540,40 +492,26 @@ async fn burn_with_message_includes_message_in_event_and_response() {
 
 #[tokio::test]
 async fn burn_missing_args_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "burn",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "burn")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
 
 #[tokio::test]
 async fn burn_not_holding_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
+    let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "burn 🍎",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "burn 🍎")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -582,20 +520,13 @@ async fn burn_not_holding_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn help_returns_ephemeral_response() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "help",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "help")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -615,12 +546,13 @@ async fn help_returns_ephemeral_response() {
 
 #[tokio::test]
 async fn unknown_subcommand_returns_ephemeral_error() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         member_id,
         "alice",
@@ -637,20 +569,13 @@ async fn unknown_subcommand_returns_ephemeral_error() {
 
 #[tokio::test]
 async fn luck_is_unrecognised_subcommand() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "luck",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "luck")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -659,12 +584,13 @@ async fn luck_is_unrecognised_subcommand() {
 
 #[tokio::test]
 async fn leaderboard_is_unrecognised_subcommand() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
     let response = dispatch(
-        &community_repo,
-        &event_log_repo,
+        &cs,
+        &els,
         community_id,
         member_id,
         "alice",
@@ -683,20 +609,13 @@ async fn leaderboard_is_unrecognised_subcommand() {
 
 #[tokio::test]
 async fn empty_text_returns_help() {
-    let (community_repo, event_log_repo) = repos();
+    let (cr, elr) = repos();
+    let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &community_repo,
-        &event_log_repo,
-        community_id,
-        member_id,
-        "alice",
-        NS,
-        "",
-    )
-    .await
-    .unwrap();
+    let response = dispatch(&cs, &els, community_id, member_id, "alice", NS, "")
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -707,10 +626,10 @@ async fn empty_text_returns_help() {
 
 #[tokio::test]
 async fn store_reflects_setup_alice_membership() {
-    let (community_repo, event_log_repo) = repos();
-    let (community_id, member_id) = setup_alice(&community_repo, &event_log_repo).await;
+    let (cr, elr) = repos();
+    let (community_id, member_id) = setup_alice(&cr, &elr).await;
 
-    let store = CommunityStore::new(&community_repo, &event_log_repo);
+    let store = CommunityStore::new(&cr, &elr);
     let community = store.get_latest(community_id).await.unwrap().unwrap();
     assert!(community.members.contains_key(&member_id));
 }

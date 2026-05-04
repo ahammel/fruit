@@ -1,9 +1,10 @@
+use exn::Exn;
 use fruit_domain::{
     burner::compute_burn,
     community::{Community, CommunityId},
     community_repo::{CommunityProvider, CommunityRepo},
     community_store::CommunityStore,
-    error::DbError,
+    error::{DbError, Error as DomainError},
     event_log::EventPayload,
     event_log_repo::{EventLogProvider, EventLogRepo},
     event_log_store::EventLogStore,
@@ -14,38 +15,34 @@ use fruit_domain::{
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::error::Error;
+use crate::error::{CommandProcessingError, Error};
 
 /// Dispatches `/fruit <text>` to the appropriate command and returns a Slack Block Kit response.
 pub async fn dispatch<E, CR, ELR>(
-    community_repo: &CR,
-    event_log_repo: &ELR,
+    community_store: &CommunityStore<CR, ELR>,
+    event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
     workspace_ns: Uuid,
     text: &str,
-) -> Result<Value, Error>
+) -> Result<Value, Exn<Error>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
     ELR: EventLogRepo + EventLogProvider<Error = E>,
 {
-    let community_store = CommunityStore::new(community_repo, event_log_repo);
-    let event_log_store = EventLogStore::new(event_log_repo);
-
     let tokens: Vec<&str> = text.split_whitespace().collect();
     let (subcommand, args) = tokens
         .split_first()
         .map(|(s, rest)| (*s, rest))
         .unwrap_or(("help", &[]));
 
-    match subcommand {
+    let result = match subcommand {
         "join" => {
             join(
-                &community_store,
-                &event_log_store,
-                community_repo,
+                community_store,
+                event_log_store,
                 community_id,
                 member_id,
                 display_name,
@@ -54,19 +51,19 @@ where
         }
         "leave" => {
             leave(
-                &community_store,
-                &event_log_store,
+                community_store,
+                event_log_store,
                 community_id,
                 member_id,
                 display_name,
             )
             .await
         }
-        "bag" => bag(&community_store, community_id, member_id).await,
+        "bag" => bag(community_store, community_id, member_id).await,
         "gift" => {
             gift(
-                &community_store,
-                &event_log_store,
+                community_store,
+                event_log_store,
                 community_id,
                 member_id,
                 workspace_ns,
@@ -76,8 +73,8 @@ where
         }
         "burn" => {
             burn(
-                &community_store,
-                &event_log_store,
+                community_store,
+                event_log_store,
                 community_id,
                 member_id,
                 display_name,
@@ -89,36 +86,31 @@ where
         other => Ok(ephemeral(format!(
             "Unknown subcommand `{other}`. Try `/fruit help`."
         ))),
-    }
+    };
+
+    result.map_err(|e| CommandProcessingError::raise(text, e))
 }
 
 async fn join<E, CR, ELR>(
-    community_store: &CommunityStore<&CR, &ELR>,
-    event_log_store: &EventLogStore<&ELR>,
-    community_repo: &CR,
+    community_store: &CommunityStore<CR, ELR>,
+    event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
-) -> Result<Value, Error>
+) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
     ELR: EventLogRepo + EventLogProvider<Error = E>,
 {
-    let maybe_community = community_store
-        .get_latest(community_id)
-        .await
-        .map_err(storage)?;
+    let maybe_community = community_store.get_latest(community_id).await?;
 
     match &maybe_community {
         Some(c) if c.members.contains_key(&member_id) => {
             return Ok(ephemeral("You're already a member of this community."));
         }
         None => {
-            community_repo
-                .put(fruit_domain::community::Community::new().with_id(community_id))
-                .await
-                .map_err(storage)?;
+            community_store.provision(community_id).await?;
         }
         _ => {}
     }
@@ -131,8 +123,7 @@ where
                 member_id,
             },
         )
-        .await
-        .map_err(storage)?;
+        .await?;
 
     Ok(ephemeral(format!(
         "*{display_name}* joined the community! 🎉"
@@ -140,22 +131,18 @@ where
 }
 
 async fn leave<E, CR, ELR>(
-    community_store: &CommunityStore<&CR, &ELR>,
-    event_log_store: &EventLogStore<&ELR>,
+    community_store: &CommunityStore<CR, ELR>,
+    event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
-) -> Result<Value, Error>
+) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
     ELR: EventLogRepo + EventLogProvider<Error = E>,
 {
-    match community_store
-        .get_latest(community_id)
-        .await
-        .map_err(storage)?
-    {
+    match community_store.get_latest(community_id).await? {
         None => {
             return Ok(ephemeral(
                 "No community here yet. Use `/fruit join` to start one.",
@@ -171,8 +158,7 @@ where
 
     event_log_store
         .append_event(community_id, EventPayload::RemoveMember { member_id })
-        .await
-        .map_err(storage)?;
+        .await?;
 
     Ok(ephemeral(format!(
         "*{display_name}* left the community. 👋"
@@ -180,10 +166,10 @@ where
 }
 
 async fn bag<E, CR, ELR>(
-    community_store: &CommunityStore<&CR, &ELR>,
+    community_store: &CommunityStore<CR, ELR>,
     community_id: CommunityId,
     member_id: MemberId,
-) -> Result<Value, Error>
+) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
@@ -218,13 +204,13 @@ where
 }
 
 async fn gift<E, CR, ELR>(
-    community_store: &CommunityStore<&CR, &ELR>,
-    event_log_store: &EventLogStore<&ELR>,
+    community_store: &CommunityStore<CR, ELR>,
+    event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     sender_id: MemberId,
     workspace_ns: Uuid,
     args: &[&str],
-) -> Result<Value, Error>
+) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
@@ -290,8 +276,7 @@ where
                 message: message.clone(),
             },
         )
-        .await
-        .map_err(storage)?;
+        .await?;
 
     let msg_suffix = message.map(|m| format!("\n_{m}_")).unwrap_or_default();
     Ok(in_channel(format!(
@@ -300,13 +285,13 @@ where
 }
 
 async fn burn<E, CR, ELR>(
-    community_store: &CommunityStore<&CR, &ELR>,
-    event_log_store: &EventLogStore<&ELR>,
+    community_store: &CommunityStore<CR, ELR>,
+    event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
     args: &[&str],
-) -> Result<Value, Error>
+) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
@@ -344,8 +329,7 @@ where
                 message: message.clone(),
             },
         )
-        .await
-        .map_err(storage)?;
+        .await?;
 
     let msg_suffix = message.map(|m| format!("\n_{m}_")).unwrap_or_default();
     Ok(in_channel(format!(
@@ -371,13 +355,13 @@ async fn require_member<E, CR, ELP>(
     store: &CommunityStore<CR, ELP>,
     community_id: CommunityId,
     member_id: MemberId,
-) -> Result<Result<Community, &'static str>, Error>
+) -> Result<Result<Community, &'static str>, Exn<DomainError>>
 where
     E: DbError,
     CR: CommunityRepo + CommunityProvider<Error = E>,
-    ELP: fruit_domain::event_log_repo::EventLogProvider<Error = E>,
+    ELP: EventLogProvider<Error = E>,
 {
-    match store.get_latest(community_id).await.map_err(storage)? {
+    match store.get_latest(community_id).await? {
         None => Ok(Err(
             "No community here yet. Use `/fruit join` to start one.",
         )),
@@ -431,10 +415,6 @@ fn parse_emojis_and_message(
     };
 
     Ok((fruits, message))
-}
-
-fn storage<E: std::error::Error + Send + Sync + 'static>(e: exn::Exn<E>) -> Error {
-    Error::Storage(e.to_string())
 }
 
 fn ephemeral(text: impl Into<String>) -> Value {

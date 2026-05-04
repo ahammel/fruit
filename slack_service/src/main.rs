@@ -3,6 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use fruit_domain::{community_store::CommunityStore, event_log_store::EventLogStore};
 use fruit_dynamo_db::{
     community_repo::DynamoDbCommunityRepo, event_log_repo::DynamoDbEventLogRepo,
 };
@@ -16,8 +17,8 @@ mod verify;
 
 struct AppState {
     signing_secret: String,
-    community_repo: DynamoDbCommunityRepo,
-    event_log_repo: DynamoDbEventLogRepo,
+    community_store: CommunityStore<DynamoDbCommunityRepo, DynamoDbEventLogRepo>,
+    event_log_store: EventLogStore<DynamoDbEventLogRepo>,
 }
 
 #[tokio::main]
@@ -31,8 +32,11 @@ async fn main() -> Result<(), Error> {
 
     let state = Arc::new(AppState {
         signing_secret,
-        community_repo: DynamoDbCommunityRepo::new(client.clone(), &table_name),
-        event_log_repo: DynamoDbEventLogRepo::new(client, &table_name),
+        community_store: CommunityStore::new(
+            DynamoDbCommunityRepo::new(client.clone(), table_name.as_str()),
+            DynamoDbEventLogRepo::new(client.clone(), table_name.as_str()),
+        ),
+        event_log_store: EventLogStore::new(DynamoDbEventLogRepo::new(client, table_name.as_str())),
     });
 
     run(service_fn(move |event| handler(event, state.clone()))).await
@@ -85,8 +89,8 @@ async fn handler(event: Request, state: Arc<AppState>) -> Result<Response<Body>,
     let member_id = identity::member_id_for(workspace_ns, &payload.user_id);
 
     let result = command::dispatch(
-        &state.community_repo,
-        &state.event_log_repo,
+        &state.community_store,
+        &state.event_log_store,
         community_id,
         member_id,
         &payload.user_name,
