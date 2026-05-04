@@ -10,6 +10,8 @@ path = "src/main.rs"
 [dependencies]
 anomalies = "0.2.2"
 aws-config = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 aws-sdk-dynamodb = "1"
 exn = "0.3.0"
 fruit-domain = { path = "../domain" }
