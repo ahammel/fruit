@@ -78,6 +78,7 @@ fn burn_record(
             payload: EventPayload::Burn {
                 member_id: member.id,
                 fruits: payload_fruits,
+                message: None,
             },
         },
         effect: Some(Effect {
@@ -334,6 +335,7 @@ fn burn_effect_with_non_remove_mutation_is_ignored_in_value_sum() {
             payload: EventPayload::Burn {
                 member_id: burner.id,
                 fruits: vec![GRAPES],
+                message: None,
             },
         },
         effect: Some(Effect {

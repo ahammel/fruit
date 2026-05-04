@@ -163,6 +163,7 @@ fn event_payload_burn_round_trips() {
         EventPayload::Burn {
             member_id: member_id(),
             fruits: vec![FRUITS[0], FRUITS[1]],
+            message: None,
         },
     );
     let encoded = encode_event(&event).unwrap();
@@ -324,7 +325,8 @@ fn event_type_name_burn() {
     assert_eq!(
         event_type_name(&EventPayload::Burn {
             member_id: member_id(),
-            fruits: vec![]
+            fruits: vec![],
+            message: None,
         }),
         EVENT_TYPE_BURN
     );

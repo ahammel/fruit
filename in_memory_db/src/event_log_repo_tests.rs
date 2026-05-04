@@ -714,6 +714,7 @@ async fn get_latest_grant_events_ignores_gift_and_burn() {
         EventPayload::Burn {
             member_id: mid,
             fruits: vec![],
+            message: None,
         },
     )
     .await
@@ -791,6 +792,7 @@ async fn get_latest_gift_records_ignores_grant_and_burn() {
         EventPayload::Burn {
             member_id: mid,
             fruits: vec![],
+            message: None,
         },
     )
     .await

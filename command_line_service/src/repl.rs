@@ -292,6 +292,7 @@ async fn cmd_burn(
             EventPayload::Burn {
                 member_id,
                 fruits: fruits.clone(),
+                message: None,
             },
         )
         .await
