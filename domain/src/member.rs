@@ -9,6 +9,31 @@ use crate::{bag::Bag, fruit::Fruit};
 #[allowed_values(all)]
 pub struct MemberId(Uuid);
 
+/// An external platform that can originate members.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExternalSystem {
+    Slack,
+}
+
+/// A user identifier on an external platform.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalUserId {
+    /// The platform this ID belongs to.
+    pub system: ExternalSystem,
+    /// The platform's native user identifier string.
+    pub id: String,
+}
+
+impl ExternalUserId {
+    /// Creates an [`ExternalUserId`] for a Slack user.
+    pub fn slack(id: impl Into<String>) -> Self {
+        Self {
+            system: ExternalSystem::Slack,
+            id: id.into(),
+        }
+    }
+}
+
 /// A participant in the game.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Member {
@@ -19,6 +44,10 @@ pub struct Member {
     _luck: u8,
     /// The fruits currently held by this member.
     pub bag: Bag,
+    /// The originating platform identity for this member.
+    ///
+    /// `None` for members added before this field was introduced.
+    pub external_id: Option<ExternalUserId>,
 }
 
 impl Member {
@@ -29,7 +58,14 @@ impl Member {
             display_name: display_name.into(),
             _luck: 0,
             bag: Bag::new(),
+            external_id: None,
         }
+    }
+
+    /// Sets the external platform identity.
+    pub fn with_external_id(mut self, external_id: ExternalUserId) -> Self {
+        self.external_id = Some(external_id);
+        self
     }
 
     /// Overrides the ID. Useful when reconstituting a member from stored data.

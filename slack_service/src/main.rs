@@ -5,12 +5,15 @@ use std::{
 
 use anomalies::category::{Busy, Conflict, Forbidden, Interrupted, NotFound, Unavailable};
 use exn::Exn;
-use fruit_domain::{community_store::CommunityStore, event_log_store::EventLogStore};
+use fruit_domain::{
+    community_store::CommunityStore, event_log_store::EventLogStore, random_granter::RandomGranter,
+};
 use fruit_dynamo_db::{
     community_repo::DynamoDbCommunityRepo, event_log_repo::DynamoDbEventLogRepo,
 };
 use lambda_runtime::{run, service_fn, LambdaEvent};
 use notify::HttpSlackNotifier;
+use rand::thread_rng;
 use serde_json::{json, Value};
 use tracing::debug;
 
@@ -83,15 +86,14 @@ async fn handle_event_bridge<N: notify::Notifier>(
     let detail: grant::GrantDetail = serde_json::from_value(event["detail"].clone())?;
 
     let community_store = CommunityStore::new(&state.community_repo, &state.event_log_repo);
-
-    let result = grant::handle_grant(
-        &community_store,
-        &state.community_repo,
+    let mut providence = fruit_domain::providence::Providence::new(
         &state.event_log_repo,
-        &state.notifier,
-        &detail,
-    )
-    .await;
+        &state.community_repo,
+        RandomGranter::new(thread_rng()),
+    );
+
+    let result =
+        grant::handle_grant(&community_store, &mut providence, &state.notifier, &detail).await;
 
     match result {
         Ok(()) => Ok(json!({})),
@@ -155,6 +157,7 @@ async fn handle_http<N: notify::Notifier>(
         community_id,
         member_id,
         &payload.user_name,
+        &payload.user_id,
         workspace_ns,
         &payload.text,
     )

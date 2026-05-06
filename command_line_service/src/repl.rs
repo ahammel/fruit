@@ -105,6 +105,7 @@ async fn cmd_add(event_log: &EventLogStore<&InMemoryEventLogRepo>, id: Community
             EventPayload::AddMember {
                 display_name: name.clone(),
                 member_id: member.id,
+                external_id: None,
             },
         )
         .await

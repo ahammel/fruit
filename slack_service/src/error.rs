@@ -86,16 +86,26 @@ impl Anomaly for CommandProcessingError {}
 #[derive(Debug)]
 pub struct GrantError {
     community_id: CommunityId,
+    channel_id: String,
+    count: usize,
     category: Category,
     status: Status,
 }
 
 impl GrantError {
     /// Wraps a lower-layer [`Exn`] in a service-layer [`Exn`], capturing
-    /// `community_id` and inheriting `category` and `status` from the cause.
-    pub fn raise<E: DbError>(community_id: CommunityId, err: Exn<E>) -> Exn<Error> {
+    /// `community_id`, `channel_id`, and `count` and inheriting `category` and
+    /// `status` from the cause.
+    pub fn raise<E: DbError>(
+        community_id: CommunityId,
+        channel_id: &str,
+        count: usize,
+        err: Exn<E>,
+    ) -> Exn<Error> {
         let grant_error = Error::Grant(GrantError {
             community_id,
+            channel_id: channel_id.to_string(),
+            count,
             category: err.category(),
             status: err.status(),
         });
@@ -107,8 +117,8 @@ impl fmt::Display for GrantError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "error processing grant for community {:?}",
-            self.community_id
+            "error processing grant for community {:?} (channel: {:?}, count: {})",
+            self.community_id, self.channel_id, self.count
         )
     }
 }
@@ -140,25 +150,24 @@ pub struct NotificationError {
 }
 
 impl NotificationError {
-    /// Wraps a network-level error (e.g. from `reqwest`) as a temporary,
-    /// unavailable-category failure.
-    #[track_caller]
-    pub fn network(context: &str, err: impl fmt::Display) -> Exn<Error> {
-        Exn::new(Error::Notification(NotificationError {
-            message: format!("{context}: {err}"),
+    /// Builds a temporary, unavailable-category notification error for use in
+    /// [`or_raise`][exn::ResultExt::or_raise] closures.
+    pub fn network(context: &str) -> Error {
+        Error::Notification(NotificationError {
+            message: context.to_string(),
             category: Unavailable,
             status: Status::Temporary,
-        }))
+        })
     }
 
-    /// Wraps a Slack API-level error (non-`ok` response) as a permanent fault.
-    #[track_caller]
-    pub fn slack_api(api_error: impl Into<String>) -> Exn<Error> {
-        Exn::new(Error::Notification(NotificationError {
+    /// Builds a permanent fault notification error for use with [`Exn::new`]
+    /// when there is no upstream error to chain.
+    pub fn slack_api(api_error: impl Into<String>) -> Error {
+        Error::Notification(NotificationError {
             message: api_error.into(),
             category: Fault,
             status: Status::Permanent,
-        }))
+        })
     }
 }
 
