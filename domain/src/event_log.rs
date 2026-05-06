@@ -5,7 +5,7 @@ use newtype_ids::IntegerIdentifier;
 use crate::{
     community::{Community, CommunityId, HasCommunityId},
     fruit::Fruit,
-    member::{Member, MemberId},
+    member::{ExternalUserId, Member, MemberId},
 };
 
 /// A position in the event/effect log sequence.
@@ -64,6 +64,10 @@ pub enum EventPayload {
     AddMember {
         display_name: String,
         member_id: MemberId,
+        /// The external platform identity of the joining member.
+        ///
+        /// `None` for events written before this field was introduced.
+        external_id: Option<ExternalUserId>,
     },
     /// Remove the member identified by `member_id` from the community.
     RemoveMember { member_id: MemberId },

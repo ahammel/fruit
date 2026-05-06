@@ -77,11 +77,11 @@ Design decisions: no `/fruit grant` (grants come from EventBridge only); explici
 
 ## 4 — Scheduled grant handler (EventBridge path in `FruitLambda`)
 
-- [ ] Dispatch EventBridge events in the same Lambda entry point as slash commands
-- [ ] Accept an EventBridge event carrying `community_id` and `count`
-- [ ] Reuse `Providence::grant_fruit` exactly as the REPL does
-- [ ] Post a Slack message to the channel via `chat.postMessage` after the grant completes
-- [ ] Unit tests: grant dispatched, notification sent, error paths
+- [x] Dispatch EventBridge events in the same Lambda entry point as slash commands
+- [x] Accept an EventBridge event carrying `community_id` and `count`
+- [x] Reuse `Providence::grant_fruit` exactly as the REPL does
+- [x] Post a Slack message to the channel via `chat.postMessage` after the grant completes
+- [x] Unit tests: grant dispatched, notification sent, error paths
 
 ---
 

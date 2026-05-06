@@ -5,27 +5,35 @@ use std::{
 
 use anomalies::category::{Busy, Conflict, Forbidden, Interrupted, NotFound, Unavailable};
 use exn::Exn;
-use fruit_domain::{community_store::CommunityStore, event_log_store::EventLogStore};
+use fruit_domain::{
+    community_store::CommunityStore, event_log_store::EventLogStore, random_granter::RandomGranter,
+};
 use fruit_dynamo_db::{
     community_repo::DynamoDbCommunityRepo, event_log_repo::DynamoDbEventLogRepo,
 };
-use lambda_http::{run, service_fn, Body, Error, Request, Response};
+use lambda_runtime::{run, service_fn, LambdaEvent};
+use notify::HttpSlackNotifier;
+use rand::thread_rng;
+use serde_json::{json, Value};
 use tracing::debug;
 
 mod command;
 mod error;
+mod grant;
 mod identity;
+mod notify;
 mod payload;
 mod verify;
 
-struct AppState {
+struct AppState<N: notify::Notifier> {
     signing_secret: String,
-    community_store: CommunityStore<DynamoDbCommunityRepo, DynamoDbEventLogRepo>,
-    event_log_store: EventLogStore<DynamoDbEventLogRepo>,
+    community_repo: DynamoDbCommunityRepo,
+    event_log_repo: DynamoDbEventLogRepo,
+    notifier: N,
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), lambda_runtime::Error> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .json()
@@ -33,6 +41,7 @@ async fn main() -> Result<(), Error> {
 
     let signing_secret =
         std::env::var("SLACK_SIGNING_SECRET").expect("SLACK_SIGNING_SECRET must be set");
+    let bot_token = std::env::var("SLACK_BOT_TOKEN").expect("SLACK_BOT_TOKEN must be set");
     let table_name = std::env::var("TABLE_NAME").expect("TABLE_NAME must be set");
 
     let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
@@ -40,36 +49,78 @@ async fn main() -> Result<(), Error> {
 
     let state = Arc::new(AppState {
         signing_secret,
-        community_store: CommunityStore::new(
-            DynamoDbCommunityRepo::new(client.clone(), table_name.as_str()),
-            DynamoDbEventLogRepo::new(client.clone(), table_name.as_str()),
-        ),
-        event_log_store: EventLogStore::new(DynamoDbEventLogRepo::new(client, table_name.as_str())),
+        community_repo: DynamoDbCommunityRepo::new(client.clone(), &table_name),
+        event_log_repo: DynamoDbEventLogRepo::new(client, &table_name),
+        notifier: HttpSlackNotifier::new(bot_token),
     });
 
-    run(service_fn(move |event| handler(event, state.clone()))).await
+    run(service_fn(move |event: LambdaEvent<Value>| {
+        let state = state.clone();
+        async move { handler(event.payload, state).await }
+    }))
+    .await
 }
 
-async fn handler(event: Request, state: Arc<AppState>) -> Result<Response<Body>, Error> {
+async fn handler<N: notify::Notifier>(
+    event: Value,
+    state: Arc<AppState<N>>,
+) -> Result<Value, lambda_runtime::Error> {
+    if is_event_bridge(&event) {
+        handle_event_bridge(event, &state).await
+    } else {
+        handle_http(event, &state).await
+    }
+}
+
+/// Returns `true` when the Lambda payload looks like an EventBridge event.
+fn is_event_bridge(event: &Value) -> bool {
+    event.get("detail-type").is_some()
+}
+
+// ── EventBridge path ──────────────────────────────────────────────────────────
+
+async fn handle_event_bridge<N: notify::Notifier>(
+    event: Value,
+    state: &AppState<N>,
+) -> Result<Value, lambda_runtime::Error> {
+    let detail: grant::GrantDetail = serde_json::from_value(event["detail"].clone())?;
+
+    let community_store = CommunityStore::new(&state.community_repo, &state.event_log_repo);
+    let mut providence = fruit_domain::providence::Providence::new(
+        &state.event_log_repo,
+        &state.community_repo,
+        RandomGranter::new(thread_rng()),
+    );
+
+    let result =
+        grant::handle_grant(&community_store, &mut providence, &state.notifier, &detail).await;
+
+    match result {
+        Ok(()) => Ok(json!({})),
+        Err(e) => {
+            debug!("{:?}", e);
+            Err(format!("{e:?}").into())
+        }
+    }
+}
+
+// ── HTTP (API Gateway v2) path ────────────────────────────────────────────────
+
+async fn handle_http<N: notify::Notifier>(
+    event: Value,
+    state: &AppState<N>,
+) -> Result<Value, lambda_runtime::Error> {
     let now_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64);
 
-    let headers = event.headers();
-    let timestamp = headers
-        .get("X-Slack-Request-Timestamp")
-        .and_then(|v| v.to_str().ok())
+    // API Gateway v2 lowercases all header names.
+    let timestamp = event["headers"]["x-slack-request-timestamp"]
+        .as_str()
         .unwrap_or("");
-    let sig_header = headers
-        .get("X-Slack-Signature")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    let body_bytes: &[u8] = match event.body() {
-        Body::Empty => &[],
-        Body::Text(s) => s.as_bytes(),
-        Body::Binary(b) => b.as_slice(),
-    };
+    let sig_header = event["headers"]["x-slack-signature"].as_str().unwrap_or("");
+    let body_str = event["body"].as_str().unwrap_or("");
+    let body_bytes = body_str.as_bytes();
 
     if !verify::verify_request(
         &state.signing_secret,
@@ -78,17 +129,18 @@ async fn handler(event: Request, state: Arc<AppState>) -> Result<Response<Body>,
         body_bytes,
         sig_header,
     ) {
-        return Ok(Response::builder().status(401).body(Body::Empty)?);
+        return Ok(json!({"statusCode": 401, "body": ""}));
     }
 
     let payload = match payload::SlashPayload::from_form(body_bytes) {
         Ok(p) => p,
         Err(e) => {
-            let msg = format!("{{\"error\": \"{e}\"}}");
-            return Ok(Response::builder()
-                .status(400)
-                .header("Content-Type", "application/json")
-                .body(Body::Text(msg))?);
+            let body = format!("{{\"error\": \"{e}\"}}");
+            return Ok(json!({
+                "statusCode": 400,
+                "headers": {"content-type": "application/json"},
+                "body": body,
+            }));
         }
     };
 
@@ -96,33 +148,39 @@ async fn handler(event: Request, state: Arc<AppState>) -> Result<Response<Body>,
     let community_id = identity::community_id_for(workspace_ns, &payload.channel_id);
     let member_id = identity::member_id_for(workspace_ns, &payload.user_id);
 
-    let result = command::dispatch(
-        &state.community_store,
-        &state.event_log_store,
-        community_id,
-        member_id,
-        &payload.user_name,
-        workspace_ns,
-        &payload.text,
-    )
-    .await;
+    let community_store = CommunityStore::new(&state.community_repo, &state.event_log_repo);
+    let event_log_store = EventLogStore::new(&state.event_log_repo);
+
+    let result = command::dispatch()
+        .community_store(&community_store)
+        .event_log_store(&event_log_store)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name(&payload.user_name)
+        .slack_user_id(&payload.user_id)
+        .workspace_ns(workspace_ns)
+        .text(&payload.text)
+        .call()
+        .await;
 
     match result {
-        Ok(json) => {
-            let body = serde_json::to_string(&json).unwrap_or_default();
-            Ok(Response::builder()
-                .status(200)
-                .header("Content-Type", "application/json")
-                .body(Body::Text(body))?)
+        Ok(json_val) => {
+            let body = serde_json::to_string(&json_val).unwrap_or_default();
+            Ok(json!({
+                "statusCode": 200,
+                "headers": {"content-type": "application/json"},
+                "body": body,
+            }))
         }
         Err(e) => {
             debug!("{:?}", e);
             let status = command_error_status(&e);
-            let msg = format!("{{\"error\": \"{e}\"}}");
-            Ok(Response::builder()
-                .status(status)
-                .header("Content-Type", "application/json")
-                .body(Body::Text(msg))?)
+            let body = format!("{{\"error\": \"{e}\"}}");
+            Ok(json!({
+                "statusCode": status,
+                "headers": {"content-type": "application/json"},
+                "body": body,
+            }))
         }
     }
 }

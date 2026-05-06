@@ -82,6 +82,7 @@ fn event_payload_add_member_round_trips() {
         EventPayload::AddMember {
             display_name: "Alice".to_string(),
             member_id: member_id(),
+            external_id: None,
         },
     );
     let encoded = encode_event(&event).unwrap();
@@ -272,7 +273,8 @@ fn event_type_name_add_member() {
     assert_eq!(
         event_type_name(&EventPayload::AddMember {
             display_name: "X".to_string(),
-            member_id: member_id()
+            member_id: member_id(),
+            external_id: None,
         }),
         EVENT_TYPE_ADD_MEMBER
     );

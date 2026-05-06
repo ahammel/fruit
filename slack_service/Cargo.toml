@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 anomalies = "0.2.2"
+bon = "3"
 aws-config = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -18,7 +19,9 @@ fruit-domain = { path = "../domain" }
 fruit-dynamo-db = { path = "../dynamo_db" }
 hex = "0.4"
 hmac = "0.12"
-lambda_http = "0.13"
+lambda_runtime = "0.13"
+rand = "0.8"
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_urlencoded = "0.7"

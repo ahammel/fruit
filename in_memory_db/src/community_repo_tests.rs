@@ -228,6 +228,7 @@ async fn store_get_latest_applies_multiple_pending_effects() {
             EventPayload::AddMember {
                 display_name: "Alice".to_string(),
                 member_id: alice_id,
+                external_id: None,
             },
         )
         .await

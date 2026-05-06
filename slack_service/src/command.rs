@@ -10,7 +10,7 @@ use fruit_domain::{
     event_log_store::EventLogStore,
     fruit::FRUITS,
     gifter::compute_gift,
-    member::MemberId,
+    member::{ExternalUserId, MemberId},
 };
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -18,12 +18,14 @@ use uuid::Uuid;
 use crate::error::{CommandProcessingError, Error};
 
 /// Dispatches `/fruit <text>` to the appropriate command and returns a Slack Block Kit response.
+#[bon::builder]
 pub async fn dispatch<E, CR, ELR>(
     community_store: &CommunityStore<CR, ELR>,
     event_log_store: &EventLogStore<ELR>,
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
+    slack_user_id: &str,
     workspace_ns: Uuid,
     text: &str,
 ) -> Result<Value, Exn<Error>>
@@ -46,6 +48,7 @@ where
                 community_id,
                 member_id,
                 display_name,
+                slack_user_id,
             )
             .await
         }
@@ -97,6 +100,7 @@ async fn join<E, CR, ELR>(
     community_id: CommunityId,
     member_id: MemberId,
     display_name: &str,
+    slack_user_id: &str,
 ) -> Result<Value, Exn<DomainError>>
 where
     E: DbError,
@@ -121,6 +125,7 @@ where
             EventPayload::AddMember {
                 display_name: display_name.to_string(),
                 member_id,
+                external_id: Some(ExternalUserId::slack(slack_user_id)),
             },
         )
         .await?;

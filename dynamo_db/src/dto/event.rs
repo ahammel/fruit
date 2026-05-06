@@ -6,7 +6,7 @@ use fruit_domain::{
     community::CommunityId,
     event_log::{Effect, Event, EventPayload, Record, SequenceId, StateMutation},
     fruit::{Fruit, FRUITS},
-    member::{Member, MemberId},
+    member::{ExternalSystem, ExternalUserId, Member, MemberId},
 };
 use newtype_ids::IntegerIdentifier as _;
 use newtype_ids_uuid::UuidIdentifier;
@@ -53,6 +53,41 @@ fn uuid_bytes(id: impl UuidIdentifier) -> ByteBuf {
     ByteBuf::from(id.as_uuid().as_bytes().to_vec())
 }
 
+// ── ExternalUserId ────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct ExternalUserIdDto {
+    system: String,
+    id: String,
+}
+
+impl From<&ExternalUserId> for ExternalUserIdDto {
+    fn from(uid: &ExternalUserId) -> Self {
+        ExternalUserIdDto {
+            system: match uid.system {
+                ExternalSystem::Slack => "Slack".to_string(),
+            },
+            id: uid.id.clone(),
+        }
+    }
+}
+
+impl TryFrom<ExternalUserIdDto> for ExternalUserId {
+    type Error = Error;
+
+    fn try_from(dto: ExternalUserIdDto) -> Result<Self, Error> {
+        let system = match dto.system.as_str() {
+            "Slack" => ExternalSystem::Slack,
+            other => {
+                return Err(Error::Codec {
+                    message: format!("unknown external system: {other:?}"),
+                })
+            }
+        };
+        Ok(ExternalUserId { system, id: dto.id })
+    }
+}
+
 // ── EventPayload ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,6 +99,8 @@ pub(crate) enum EventPayloadDto {
     AddMember {
         display_name: String,
         member_id: ByteBuf,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        external_id: Option<ExternalUserIdDto>,
     },
     RemoveMember {
         member_id: ByteBuf,
@@ -95,9 +132,11 @@ impl From<&EventPayload> for EventPayloadDto {
             EventPayload::AddMember {
                 display_name,
                 member_id,
+                external_id,
             } => EventPayloadDto::AddMember {
                 display_name: display_name.clone(),
                 member_id: uuid_bytes(*member_id),
+                external_id: external_id.as_ref().map(ExternalUserIdDto::from),
             },
             EventPayload::RemoveMember { member_id } => EventPayloadDto::RemoveMember {
                 member_id: uuid_bytes(*member_id),
@@ -142,9 +181,11 @@ impl TryFrom<EventPayloadDto> for EventPayload {
             EventPayloadDto::AddMember {
                 display_name,
                 member_id: mid,
+                external_id,
             } => EventPayload::AddMember {
                 display_name,
                 member_id: member_id_from_bytes(&mid)?,
+                external_id: external_id.map(ExternalUserId::try_from).transpose()?,
             },
             EventPayloadDto::RemoveMember { member_id: mid } => EventPayload::RemoveMember {
                 member_id: member_id_from_bytes(&mid)?,
@@ -330,6 +371,8 @@ pub(crate) struct MemberDto {
     pub display_name: String,
     pub luck: u8,
     pub bag: HashMap<String, usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<ExternalUserIdDto>,
 }
 
 impl From<&Member> for MemberDto {
@@ -343,6 +386,7 @@ impl From<&Member> for MemberDto {
                 .iter()
                 .map(|(fruit, count)| (fruit_name(fruit), count))
                 .collect(),
+            external_id: m.external_id.as_ref().map(ExternalUserIdDto::from),
         }
     }
 }
@@ -357,10 +401,14 @@ impl TryFrom<MemberDto> for Member {
             let fruit = fruit_from_name(name)?;
             Ok((0..count).fold(bag, |b, _| b.insert(fruit)))
         })?;
-        Ok(Member::new(dto.display_name)
+        let member = Member::new(dto.display_name)
             .with_id(id)
             .with_luck(dto.luck)
-            .with_bag(bag))
+            .with_bag(bag);
+        Ok(match dto.external_id {
+            Some(dto) => member.with_external_id(ExternalUserId::try_from(dto)?),
+            None => member,
+        })
     }
 }
 
