@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::error::{CommandProcessingError, Error};
 
 /// Dispatches `/fruit <text>` to the appropriate command and returns a Slack Block Kit response.
-#[allow(clippy::too_many_arguments)]
+#[bon::builder]
 pub async fn dispatch<E, CR, ELR>(
     community_store: &CommunityStore<CR, ELR>,
     event_log_store: &EventLogStore<ELR>,

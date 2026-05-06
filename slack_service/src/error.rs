@@ -7,7 +7,6 @@ use anomalies::{
 };
 use exn::Exn;
 use fruit_domain::community::CommunityId;
-use fruit_domain::error::DbError;
 use thiserror::Error;
 
 /// Service-level error for the slash-command handler.
@@ -45,7 +44,10 @@ pub struct CommandProcessingError {
 impl CommandProcessingError {
     /// Wraps a lower-layer [`Exn`] in a service-layer [`Exn`], capturing
     /// `command_text` and inheriting `category` and `status` from the cause.
-    pub fn raise<E: DbError>(command_text: impl Into<String>, err: Exn<E>) -> Exn<Error> {
+    pub fn raise<A: Anomaly + Send + Sync + 'static>(
+        command_text: impl Into<String>,
+        err: Exn<A>,
+    ) -> Exn<Error> {
         let processing_error = Error::CommandProcessing(CommandProcessingError {
             command_text: command_text.into(),
             category: err.category(),
@@ -96,11 +98,11 @@ impl GrantError {
     /// Wraps a lower-layer [`Exn`] in a service-layer [`Exn`], capturing
     /// `community_id`, `channel_id`, and `count` and inheriting `category` and
     /// `status` from the cause.
-    pub fn raise<E: DbError>(
+    pub fn raise<A: Anomaly + Send + Sync + 'static>(
         community_id: CommunityId,
         channel_id: &str,
         count: usize,
-        err: Exn<E>,
+        err: Exn<A>,
     ) -> Exn<Error> {
         let grant_error = Error::Grant(GrantError {
             community_id,

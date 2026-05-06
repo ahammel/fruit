@@ -151,17 +151,17 @@ async fn handle_http<N: notify::Notifier>(
     let community_store = CommunityStore::new(&state.community_repo, &state.event_log_repo);
     let event_log_store = EventLogStore::new(&state.event_log_repo);
 
-    let result = command::dispatch(
-        &community_store,
-        &event_log_store,
-        community_id,
-        member_id,
-        &payload.user_name,
-        &payload.user_id,
-        workspace_ns,
-        &payload.text,
-    )
-    .await;
+    let result = command::dispatch()
+        .community_store(&community_store)
+        .event_log_store(&event_log_store)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name(&payload.user_name)
+        .slack_user_id(&payload.user_id)
+        .workspace_ns(workspace_ns)
+        .text(&payload.text)
+        .call()
+        .await;
 
     match result {
         Ok(json_val) => {

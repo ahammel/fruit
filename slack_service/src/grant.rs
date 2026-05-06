@@ -80,28 +80,34 @@ where
     let text = format_channel_summary(&mutations);
     notifier.post_message(&detail.channel_id, &text).await?;
 
-    for (member_id, fruits) in fruits_by_member(&mutations) {
-        if let Some(member) = community.members.get(&member_id) {
-            if let Some(ref ext) = member.external_id {
-                if ext.system == ExternalSystem::Slack {
-                    let dm = format_member_dm(&fruits);
-                    notifier.post_dm(&ext.id, &dm).await?;
-                }
-            }
-        }
+    let dm_targets: Vec<(String, Vec<Fruit>)> = fruits_by_member(&mutations)
+        .into_iter()
+        .filter_map(|(member_id, fruits)| {
+            let ext = community.members.get(&member_id)?.external_id.as_ref()?;
+            (ext.system == ExternalSystem::Slack).then(|| (ext.id.clone(), fruits))
+        })
+        .collect();
+
+    for (slack_id, fruits) in dm_targets {
+        notifier
+            .post_dm(&slack_id, &format_member_dm(&fruits))
+            .await?;
     }
 
     Ok(())
 }
 
 fn fruits_by_member(mutations: &[StateMutation]) -> HashMap<MemberId, Vec<Fruit>> {
-    let mut map: HashMap<MemberId, Vec<Fruit>> = HashMap::new();
-    for m in mutations {
-        if let StateMutation::AddFruitToMember { member_id, fruit } = m {
-            map.entry(*member_id).or_default().push(*fruit);
-        }
-    }
-    map
+    mutations
+        .iter()
+        .filter_map(|m| match m {
+            StateMutation::AddFruitToMember { member_id, fruit } => Some((*member_id, *fruit)),
+            _ => None,
+        })
+        .fold(HashMap::new(), |mut map, (member_id, fruit)| {
+            map.entry(member_id).or_default().push(fruit);
+            map
+        })
 }
 
 fn format_channel_summary(mutations: &[StateMutation]) -> String {

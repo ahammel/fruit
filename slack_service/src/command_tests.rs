@@ -147,18 +147,18 @@ async fn join_provisions_community_and_records_event() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "join",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("join")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 
@@ -183,7 +183,16 @@ async fn join_second_member_does_not_reprovision() {
     let bob_id = bob_id();
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(&cs, &els, community_id, bob_id, "bob", "U_BOB", NS, "join")
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(bob_id)
+        .display_name("bob")
+        .slack_user_id("U_BOB")
+        .workspace_ns(NS)
+        .text("join")
+        .call()
         .await
         .unwrap();
 
@@ -209,18 +218,18 @@ async fn join_already_member_returns_ephemeral_error() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "join",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("join")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -235,18 +244,18 @@ async fn leave_records_remove_member_event() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("leave")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 
@@ -271,18 +280,18 @@ async fn leave_not_member_returns_ephemeral_error() {
     let outsider_id = bob_id();
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        outsider_id,
-        "bob",
-        "U_BOB",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(outsider_id)
+        .display_name("bob")
+        .slack_user_id("U_BOB")
+        .workspace_ns(NS)
+        .text("leave")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -293,18 +302,18 @@ async fn leave_no_community_returns_ephemeral_error() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "leave",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("leave")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -317,18 +326,18 @@ async fn bag_shows_empty_bag_without_luck() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "bag",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("bag")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -348,18 +357,18 @@ async fn bag_not_member_returns_ephemeral_error() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, _) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        crate::identity::member_id_for(NS, "U_STRANGER"),
-        "stranger",
-        "U_STRANGER",
-        NS,
-        "bag",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(crate::identity::member_id_for(NS, "U_STRANGER"))
+        .display_name("stranger")
+        .slack_user_id("U_STRANGER")
+        .workspace_ns(NS)
+        .text("bag")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -372,18 +381,18 @@ async fn gift_records_gift_event() {
     let (community_id, alice_id, _bob_id) = setup_gift_scenario(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        alice_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "gift <@U_BOB> 🍎 here you go",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(alice_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("gift <@U_BOB> 🍎 here you go")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "in_channel");
 
@@ -407,18 +416,18 @@ async fn gift_missing_args_returns_ephemeral_error() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "gift",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("gift")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -429,18 +438,18 @@ async fn gift_unknown_emoji_returns_ephemeral_error() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "gift <@U_BOB> 🚀",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("gift <@U_BOB> 🚀")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -452,18 +461,18 @@ async fn gift_fruit_not_held_returns_ephemeral_error() {
     let (cs, els) = stores(&cr, &elr);
 
     // Alice holds 🍎 but not 🍋
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        alice_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "gift <@U_BOB> 🍋",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(alice_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("gift <@U_BOB> 🍋")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -474,18 +483,18 @@ async fn gift_recipient_not_member_returns_ephemeral_error() {
     let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        alice_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "gift <@U_STRANGER> 🍎",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(alice_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("gift <@U_STRANGER> 🍎")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -498,18 +507,18 @@ async fn burn_records_burn_event() {
     let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        alice_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "burn 🍎",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(alice_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("burn 🍎")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "in_channel");
 
@@ -533,18 +542,18 @@ async fn burn_with_message_includes_message_in_event_and_response() {
     let (community_id, alice_id, _) = setup_gift_scenario(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        alice_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "burn 🍎 for the good of all",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(alice_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("burn 🍎 for the good of all")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "in_channel");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -576,18 +585,18 @@ async fn burn_missing_args_returns_ephemeral_error() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "burn",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("burn")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -598,18 +607,18 @@ async fn burn_not_holding_returns_ephemeral_error() {
     let (community_id, member_id) = setup_alice(&cr, &elr).await;
     let (cs, els) = stores(&cr, &elr);
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "burn 🍎",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("burn 🍎")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -622,18 +631,18 @@ async fn help_returns_ephemeral_response() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "help",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("help")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -657,18 +666,18 @@ async fn unknown_subcommand_returns_ephemeral_error() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "frobnicate",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("frobnicate")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
 }
@@ -681,18 +690,18 @@ async fn luck_is_unrecognised_subcommand() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "luck",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("luck")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -705,18 +714,18 @@ async fn leaderboard_is_unrecognised_subcommand() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "leaderboard",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("leaderboard")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
@@ -731,18 +740,18 @@ async fn empty_text_returns_help() {
     let (cs, els) = stores(&cr, &elr);
     let (community_id, member_id) = ids();
 
-    let response = dispatch(
-        &cs,
-        &els,
-        community_id,
-        member_id,
-        "alice",
-        "U_ALICE",
-        NS,
-        "",
-    )
-    .await
-    .unwrap();
+    let response = dispatch()
+        .community_store(&cs)
+        .event_log_store(&els)
+        .community_id(community_id)
+        .member_id(member_id)
+        .display_name("alice")
+        .slack_user_id("U_ALICE")
+        .workspace_ns(NS)
+        .text("")
+        .call()
+        .await
+        .unwrap();
 
     assert_eq!(response["response_type"], "ephemeral");
     let text = response["blocks"][0]["text"]["text"].as_str().unwrap();
